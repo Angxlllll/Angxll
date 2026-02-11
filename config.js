@@ -7,10 +7,10 @@ global.opts = yargs(process.argv.slice(2))
   .parse()
 
 const OWNER = Object.freeze([
-  '5714222810',
-  '159606034665538',
-  '3264846290995',
-  '205819731832938'
+  '5215911153853@s.whatsapp.net',
+  '226044783132714',
+  '226044783132714@lid',
+  '205819731832938@s.whatsapp.net'
 ])
 
 const BOT = Object.freeze({
