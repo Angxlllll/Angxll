@@ -1,39 +1,62 @@
-import yts from 'yt-search'
-import fetch from 'node-fetch'
+import yts from "yt-search"
 
-const API_URL = 'https://api.stellarwa.xyz'
-const API_KEY = 'Angxll'
+const handler = async (m, { conn, args, usedPrefix, command }) => {
+  const query = args.join(" ").trim()
+  if (!query) {
+    return conn.sendMessage(
+      m.chat,
+      { text: `✳️ Usa:\n${usedPrefix}${command} <texto>` },
+      { quoted: m }
+    )
+  }
 
-async function getAudio(url) {
-  const res = await fetch(
-    `${API_URL}/dl/ytmp3?url=${encodeURIComponent(url)}&key=${API_KEY}`,
-    { timeout: 10000 }
-  )
-  const json = await res.json()
-  return json?.data?.dl || null
-}
+  await conn.sendMessage(m.chat, {
+    react: { text: "🕒", key: m.key }
+  })
 
-const handler = async (m, { conn, args }) => {
-  const text = args.join(' ')
-  if (!text) return m.reply('❗ Usa:\n.play nombre')
-
-  const search = await yts(text)
+  const search = await yts(query)
   const video = search.videos?.[0]
-  if (!video) return m.reply('❌ No encontrado')
+  if (!video) {
+    return conn.sendMessage(
+      m.chat,
+      { text: "❌ No se encontraron resultados" },
+      { quoted: m }
+    )
+  }
 
-  const audioUrl = await getAudio(video.url)
-  if (!audioUrl) return m.reply('❌ Error en la API')
+  const caption =
+    `🎬 *${video.title}*\n` +
+    `👤 ${video.author?.name || "—"}\n` +
+    `⏱ ${video.timestamp || "--:--"}`
+
+  const audioCmd = `${usedPrefix}ytmp3 ${video.url}`
+  const videoCmd = `${usedPrefix}ytmp4 ${video.url}`
 
   await conn.sendMessage(
     m.chat,
     {
-      audio: { url: audioUrl },
-      mimetype: 'audio/mpeg',
-      fileName: `${video.title}.mp3`
+      image: { url: video.thumbnail },
+      caption,
+      buttons: [
+        {
+          buttonId: audioCmd,
+          buttonText: { displayText: "🎧 Audio" },
+          type: 1
+        },
+        {
+          buttonId: videoCmd,
+          buttonText: { displayText: "🎬 Video" },
+          type: 1
+        }
+      ],
+      headerType: 4
     },
     { quoted: m }
   )
 }
 
-handler.command = ['play']
+handler.command = ["play"]
+handler.help = ["play <texto>"]
+handler.tags = ["descargas"]
+
 export default handler
