@@ -1,74 +1,42 @@
-import axios from "axios"
-
-const API_URL = "https://api-adonix.ultraplus.click/download/ytaudio"
-const API_KEY = "Angxlllll"
+import fetch from "node-fetch"
+import crypto from "crypto"
 
 function isYouTube(url = "") {
   return /^https?:\/\//i.test(url) &&
-    /(youtube\.com|youtu\.be|music\.youtube\.com)/i.test(url)
+         /(youtube\.com|youtu\.be|music\.youtube\.com)/i.test(url)
 }
 
 const handler = async (m, { conn, args, usedPrefix, command }) => {
-  const url = args.join(" ").trim()
+  const url = args[0]
+  if (!url || !isYouTube(url)) {
+    return conn.sendMessage(
+      m.chat,
+      { text: `✳️ Usa:\n${usedPrefix}${command} <link de YouTube>` },
+      { quoted: m }
+    )
+  }
 
-  if (!url)
-    return m.reply(`✳️ Usa:\n${usedPrefix}${command} <url de YouTube>`)
-
-  if (!isYouTube(url))
-    return m.reply("❌ URL de YouTube inválida.")
-
-  await conn.sendMessage(m.chat, {
-    react: { text: "🕘", key: m.key }
-  })
+  await conn.sendMessage(m.chat, { react: { text: "🎧", key: m.key } })
 
   try {
-    const { data } = await axios.get(API_URL, {
-      params: {
-        url,
-        apikey: API_KEY
+    const dl = await savetube.download(url)
+    if (!dl.status) throw dl.error
+
+    await conn.sendMessage(
+      m.chat,
+      {
+        audio: { url: dl.result.download },
+        mimetype: "audio/mpeg",
+        fileName: `${sanitize(dl.result.title)}.mp3`
       },
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json"
-      },
-      timeout: 20000
-    })
-
-    const result = data?.data || data?.datos
-    if (!result) throw 0
-
-    const audioUrl = result.url
-    if (!audioUrl || !/^https?:\/\//i.test(audioUrl)) throw 0
-
-    const title = result.title || "Audio"
-    const channel = result.author || "YouTube"
-    const thumbnail = result.thumbnail
-
-    await conn.sendMessage(m.chat, {
-      image: { url: thumbnail },
-      caption: `
-✧━───『 𝙄𝙣𝙛𝙤 𝙙𝙚𝙡 𝘼𝙪𝙙𝙞𝙤 』───━✧
-
-🎼 Título: ${title}
-📺 Canal: ${channel}
-
-» Enviando audio 🎧
-`.trim()
-    }, { quoted: m })
-
-    await conn.sendMessage(m.chat, {
-      audio: { url: audioUrl },
-      mimetype: "audio/mpeg",
-      fileName: title.replace(/[\\/:*?"<>|]/g, "").substring(0, 60) + ".mp3",
-      ptt: false
-    }, { quoted: m })
-
-    await conn.sendMessage(m.chat, {
-      react: { text: "✅", key: m.key }
-    })
-
-  } catch {
-    await m.reply("❌ Error al obtener el audio.")
+      { quoted: m }
+    )
+  } catch (e) {
+    await conn.sendMessage(
+      m.chat,
+      { text: `❌ Error: ${e}` },
+      { quoted: m }
+    )
   }
 }
 
@@ -77,3 +45,75 @@ handler.tags = ["descargas"]
 handler.help = ["ytmp3 <url>"]
 
 export default handler
+
+function sanitize(name = "audio") {
+  return name.replace(/[\\/:*?"<>|]+/g, "").slice(0, 100)
+}
+
+const savetube = {
+  key: Buffer.from("C5D58EF67A7584E4A29F6C35BBC4EB12", "hex"),
+
+  decrypt(enc) {
+    const b = Buffer.from(enc.replace(/\s/g, ""), "base64")
+    const iv = b.subarray(0, 16)
+    const data = b.subarray(16)
+    const d = crypto.createDecipheriv("aes-128-cbc", this.key, iv)
+    return JSON.parse(Buffer.concat([d.update(data), d.final()]).toString())
+  },
+
+  async download(url) {
+    const random = await fetch("https://media.savetube.vip/api/random-cdn", {
+      headers: {
+        origin: "https://save-tube.com",
+        referer: "https://save-tube.com/",
+        "User-Agent": "Mozilla/5.0"
+      }
+    }).then(r => r.json())
+
+    const cdn = random.cdn
+
+    const info = await fetch(`https://${cdn}/v2/info`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        origin: "https://save-tube.com",
+        referer: "https://save-tube.com/",
+        "User-Agent": "Mozilla/5.0"
+      },
+      body: JSON.stringify({ url })
+    }).then(r => r.json())
+
+    if (!info?.status) return { status: false, error: "Info error" }
+
+    const json = this.decrypt(info.data)
+    const format = json.audio_formats.find(a => a.quality === 128) || json.audio_formats[0]
+    if (!format) return { status: false, error: "Audio no disponible" }
+
+    const dl = await fetch(`https://${cdn}/download`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        origin: "https://save-tube.com",
+        referer: "https://save-tube.com/",
+        "User-Agent": "Mozilla/5.0"
+      },
+      body: JSON.stringify({
+        id: json.id,
+        key: json.key,
+        downloadType: "audio",
+        quality: String(format.quality)
+      })
+    }).then(r => r.json())
+
+    const link = dl?.data?.downloadUrl
+    if (!link) return { status: false, error: "Link error" }
+
+    return {
+      status: true,
+      result: {
+        title: json.title,
+        download: link
+      }
+    }
+  }
+}
