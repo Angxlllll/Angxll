@@ -1,5 +1,3 @@
-import { decodeJid } from '../../lib/simple.js'
-
 const countryFlags = Object.freeze({
   '1': '🇺🇸','7': '🇷🇺','20': '🇪🇬','27': '🇿🇦','30': '🇬🇷',
   '31': '🇳🇱','32': '🇧🇪','33': '🇫🇷','34': '🇪🇸','36': '🇭🇺',
@@ -44,51 +42,52 @@ const countryFlags = Object.freeze({
   '976': '🇲🇳','977': '🇳🇵'
 })
 
-  const prefixes = Object.keys(countryFlags).sort((a, b) => b.length - a.length)
+const prefixes = Object.keys(countryFlags).sort((a, b) => b.length - a.length)
 const flagCache = new Map()
 
-const getFlagFromJid = jid => {
-  if (!jid.endsWith('@s.whatsapp.net')) return '🏳️'
-  const num = jid.split('@')[0].replace(/^0+/, '')
-  let cached = flagCache.get(num)
+const getFlagFromNumber = num => {
+  const cached = flagCache.get(num)
   if (cached) return cached
+
   let flag = '🏳️'
-  for (const p of prefixes) {
+  for (let i = 0; i < prefixes.length; i++) {
+    const p = prefixes[i]
     if (num.startsWith(p)) {
       flag = countryFlags[p]
       break
     }
   }
+
   flagCache.set(num, flag)
   return flag
 }
 
-const handler = async (m, { conn, participants }) => {
-  if (!m.isGroup) return
+const handler = async (m, { conn, getGroupMeta }) => {
+  if (!getGroupMeta) return
 
-  if (!participants || !participants.length) {
-    const meta = await conn.groupMetadata(m.chat)
-    participants = meta.participants
-  }
+  await conn.sendMessage(m.chat, {
+    react: { text: '🗣️', key: m.key }
+  })
 
-  conn.sendMessage(m.chat, { react: { text: '🗣️', key: m.key } })
+  const meta = await getGroupMeta()
+  const participants = meta.participants
+  if (!participants?.length) return
 
   const lines = []
   const mentions = []
 
-  for (const p of participants) {
-  let jid = p.id || p.jid
-  if (!jid) continue
+  for (let i = 0; i < participants.length; i++) {
+    const jid = participants[i].id
+    if (!jid || !jid.endsWith('@s.whatsapp.net')) continue
 
-  jid = decodeJid(jid)
-  if (!jid.endsWith('@s.whatsapp.net')) continue
+    const atIndex = jid.indexOf('@')
+    const num = jid.slice(0, atIndex)
 
-  const num = jid.split('@')[0]
-  const flag = getFlagFromJid(jid)
+    const flag = getFlagFromNumber(num)
 
-  lines.push(`┊» ${flag} @${num}`)
-  mentions.push(jid)
-}
+    lines.push(`┊» ${flag} @${num}`)
+    mentions.push(jid)
+  }
 
   if (!mentions.length) return
 
