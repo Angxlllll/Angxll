@@ -24,10 +24,10 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks)
 }
 
-const getMentions = participants =>
-  Array.isArray(participants)
-    ? participants.map(p => p.id)
-    : []
+const getMentions = (conn, participants = []) =>
+  participants
+    .map(p => conn.decodeJid(p.jid || p.id))
+    .filter(Boolean)
 
 const handler = async (m, { conn, args, participants }) => {
   const text = args.length ? args.join(' ') : ''
@@ -38,11 +38,7 @@ const handler = async (m, { conn, args, participants }) => {
 
   if (root) {
     sourceType = getContentType(root)
-    if (
-      sourceType &&
-      sourceType !== 'conversation' &&
-      sourceType !== 'extendedTextMessage'
-    ) {
+    if (sourceType && !['conversation', 'extendedTextMessage'].includes(sourceType)) {
       source = root[sourceType]
     }
   }
@@ -51,24 +47,17 @@ const handler = async (m, { conn, args, participants }) => {
     const q = unwrap(m.quoted.message)
     if (q) {
       sourceType = getContentType(q)
-      if (
-        sourceType &&
-        sourceType !== 'conversation' &&
-        sourceType !== 'extendedTextMessage'
-      ) {
+      if (sourceType && !['conversation', 'extendedTextMessage'].includes(sourceType)) {
         source = q[sourceType]
       } else {
-        const qtext =
-          q.conversation ||
-          q.extendedTextMessage?.text
-
+        const qtext = q.conversation || q.extendedTextMessage?.text
         if (qtext) {
           return conn.sendMessage(
             m.chat,
             {
               text: qtext,
               contextInfo: {
-                mentionedJid: getMentions(participants),
+                mentionedJid: getMentions(conn, participants),
                 forwardingScore: 1,
                 isForwarded: true
               }
@@ -86,7 +75,7 @@ const handler = async (m, { conn, args, participants }) => {
       {
         text,
         contextInfo: {
-          mentionedJid: getMentions(participants),
+          mentionedJid: getMentions(conn, participants),
           forwardingScore: 1,
           isForwarded: true
         }
@@ -128,7 +117,7 @@ const handler = async (m, { conn, args, participants }) => {
     {
       ...payload,
       contextInfo: {
-        mentionedJid: getMentions(participants),
+        mentionedJid: getMentions(conn, participants),
         forwardingScore: 1,
         isForwarded: true
       }
