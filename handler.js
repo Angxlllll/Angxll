@@ -64,11 +64,23 @@ async function process(raw) {
   const exec = plugin.exec || plugin.default || plugin
   if (!exec) return
 
+  let participants
+
+  if (m.isGroup && plugin.needParticipants === true) {
+    try {
+      const meta = await this.groupMetadata(m.chat)
+      participants = meta?.participants || []
+    } catch {
+      participants = []
+    }
+  }
+
   await exec.call(this, m, {
     conn: this,
     args,
     command,
     usedPrefix: prefix,
+    participants,
     isROwner: m.isROwner,
     isOwner: m.isOwner,
     isAdmin: m.isAdmin,
