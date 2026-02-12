@@ -137,27 +137,27 @@ async function startSock() {
     }
 
     if (connection === "open") {
-  console.log(chalk.greenBright("✿ Conectado"))
+      console.log(chalk.greenBright("✿ Conectado"))
 
-  const file = "./lastRestarter.json"
-  if (fs.existsSync(file)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(file, "utf-8"))
-      if (data?.chatId && data?.key) {
-        await sock.sendMessage(
-          data.chatId,
-          {
-            text: `✅ *${global.namebot} está en línea nuevamente* 🚀`,
-            edit: data.key
+      const file = "./lastRestarter.json"
+      if (fs.existsSync(file)) {
+        try {
+          const data = JSON.parse(fs.readFileSync(file, "utf-8"))
+          if (data?.chatId && data?.key) {
+            await sock.sendMessage(
+              data.chatId,
+              {
+                text: `✅ *${global.namebot} está en línea nuevamente* 🚀`,
+                edit: data.key
+              }
+            )
           }
-        )
+          fs.unlinkSync(file)
+        } catch (e) {
+          console.error(e)
+        }
       }
-      fs.unlinkSync(file)
-    } catch (e) {
-      console.error(e)
     }
-  }
-}
 
     if (connection === "close") {
       if (reason === DisconnectReason.loggedOut) process.exit(0)
