@@ -53,7 +53,7 @@ const handler = async (m, { conn, participants }) => {
 
 handler.group = true
 handler.admin = true
-handler.customPrefix = /^\.?(promote|daradmin|addadmin)/i
+handler.command = ['promote']
 handler.help = ['promote']
 handler.tags = ['grupos']
 
