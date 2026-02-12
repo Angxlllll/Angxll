@@ -24,12 +24,9 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks)
 }
 
-const getMentions = (conn, participants = []) =>
-  participants
-    .map(p => conn.decodeJid(p.jid || p.id))
-    .filter(Boolean)
+const handler = async (m, { conn, args, getGroupMeta }) => {
+  if (!getGroupMeta) return
 
-const handler = async (m, { conn, args, participants }) => {
   const text = args.length ? args.join(' ') : ''
   const root = unwrap(m.message)
 
@@ -42,6 +39,9 @@ const handler = async (m, { conn, args, participants }) => {
       source = root[sourceType]
     }
   }
+
+  const meta = await getGroupMeta()
+  const mentionedJid = meta.participants.map(p => p.id)
 
   if (!source && m.quoted) {
     const q = unwrap(m.quoted.message)
@@ -57,7 +57,7 @@ const handler = async (m, { conn, args, participants }) => {
             {
               text: qtext,
               contextInfo: {
-                mentionedJid: getMentions(conn, participants),
+                mentionedJid,
                 forwardingScore: 1,
                 isForwarded: true
               }
@@ -75,7 +75,7 @@ const handler = async (m, { conn, args, participants }) => {
       {
         text,
         contextInfo: {
-          mentionedJid: getMentions(conn, participants),
+          mentionedJid,
           forwardingScore: 1,
           isForwarded: true
         }
@@ -117,7 +117,7 @@ const handler = async (m, { conn, args, participants }) => {
     {
       ...payload,
       contextInfo: {
-        mentionedJid: getMentions(conn, participants),
+        mentionedJid,
         forwardingScore: 1,
         isForwarded: true
       }
