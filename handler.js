@@ -158,15 +158,24 @@ async function process(raw) {
 
   try {
     await exec.call(this, m, {
-      conn: this,
-      args,
-      command,
-      usedPrefix: prefix,
-      isROwner,
-      isOwner,
-      isAdmin,
-      isBotAdmin
-    })
+  conn: this,
+  args,
+  command,
+  usedPrefix: prefix,
+  isROwner,
+  isOwner,
+  isAdmin,
+  isBotAdmin,
+  getGroupMeta: isGroup
+    ? async () => {
+        const meta = await getGroupMeta(this, chatId)
+        return {
+          ...meta,
+          participants: lidParser(meta?.participants || [])
+        }
+      }
+    : null
+})
   } catch (e) {
     console.error("Plugin error:", e)
   }
