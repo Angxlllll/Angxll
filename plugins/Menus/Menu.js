@@ -37,7 +37,7 @@ let handler = async (m, { conn }) => {
         '⭒ ִֶָ७ ꯭📜˙⋆｡ - *𝖭𝗈𝗍𝗂𝖿𝗒*\n' +
         '⭒ ִֶָ७ ꯭📜˙⋆｡ - *𝖯𝗋𝗈𝗆𝗈𝗍𝖾*\n' +
         '⭒ ִֶָ७ ꯭📜˙⋆｡ - *𝖳𝗈𝖽𝗈𝗌*',
-      image: 'https://files.catbox.moe/m851qr.jpg',
+      image: 'https://cdn.russellxz.click/b1af0aef.jpeg',
       buttons: [
         { name: 'WhatsApp', url: 'https://wa.me/5215911153853' }
       ]
@@ -55,7 +55,7 @@ let handler = async (m, { conn }) => {
         '⭒ ִֶָ७ ꯭🎵˙⋆｡ - *𝖳𝗂𝗄𝗍𝗈𝗄*\n' +
         '⭒ ִֶָ७ ꯭🎵˙⋆｡ - *𝖸𝗍𝗆𝗉3*\n' +
         '⭒ ִֶָ७ ꯭🎵˙⋆｡ - *𝖸𝗍𝗆𝗉4*',
-      image: 'https://files.catbox.moe/63tppq.jpg',
+      image: 'https://cdn.russellxz.click/b1af0aef.jpeg',
       buttons: [
         { name: 'WhatsApp', url: 'https://wa.me/5215584393251' }
       ]
@@ -70,7 +70,7 @@ let handler = async (m, { conn }) => {
         '⭒ ִֶָ७ ꯭🛠️˙⋆｡ - *𝖠𝖻𝗋𝗂𝗋*\n' +
         '⭒ ִֶָ७ ꯭🛠️˙⋆｡ - *𝖪𝗂𝖼𝗄*\n' +
         '⭒ ִֶָ७ ꯭🛠️˙⋆｡ - *𝖶𝗁𝖺𝗍𝗆𝗎𝗌𝗂𝖼*',
-      image: 'https://files.catbox.moe/7kgw8a.jpg',
+      image: 'https://cdn.russellxz.click/b1af0aef.jpeg',
       buttons: [
         { name: 'Soporte', url: 'https://wa.me/5210000000000' }
       ]
