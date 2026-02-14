@@ -177,8 +177,7 @@ let handler = async (m, { conn, args, isOwner, isROwner }) => {
 
 handler.help = ['deletebs'];
 handler.tags = ['tools'];
-handler.command = /^(deletebs|limpiar|cleanup|cleanbeast)$/i;
+handler.command = ['limpiar', 'clean']
 handler.rowner = true;
-handler.owner = true;
 
 export default handler;
