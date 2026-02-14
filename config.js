@@ -1,3 +1,5 @@
+import yargs from 'yargs'
+
 global.opts = yargs(process.argv.slice(2))
   .exitProcess(false)
   .parse()
