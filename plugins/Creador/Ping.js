@@ -1,31 +1,71 @@
 import os from 'os'
-import { performance } from 'perf_hooks'
 
 let handler = async (m, { conn }) => {
-  const start = performance.now()
+    // Medición real del ping
+    const startTime = Date.now()
+    let sentMsg = await conn.sendMessage(m.chat, { text: '🏓 Calculando ping real...' }, { quoted: m })
+    const endTime = Date.now()
+    const realPing = endTime - startTime
 
-  const used = process.memoryUsage()
-  const totalRam = os.totalmem()
-  const freeRam = os.freemem()
+    // Información del sistema
+    const arch = os.arch()
+    const platform = os.platform()
+    const release = os.release()
+    const hostname = os.hostname()
+    const totalMem = (os.totalmem() / 1024 / 1024 / 1024).toFixed(2)
+    const freeMem = (os.freemem() / 1024 / 1024 / 1024).toFixed(2)
+    const uptime = formatUptime(os.uptime())
+    const cpus = os.cpus()
+    const cpuModel = cpus[0].model
+    const cpuCores = cpus.length
+    const botUptime = formatUptime(process.uptime())
 
-  const latency = performance.now() - start
+    // Información adicional de WhatsApp
+    const connectionState = conn.ws.readyState
+    const connectionStatus = getConnectionStatus(connectionState)
 
-  const text = `
-╭──〔 ${global.namebot} 〕
-│
-│ ⚡ Speed: ${latency.toFixed(2)} ms
-│ 🧠 RAM Used: ${(used.rss / 1024 / 1024).toFixed(1)} MB
-│ 💾 RAM Free: ${(freeRam / 1024 / 1024).toFixed(1)} MB
-│ 💻 Platform: ${process.platform}
-│ 🟢 Uptime: ${(process.uptime() / 60).toFixed(1)} min
-│
-╰──────────────
-`.trim()
+    let result = `
+╭━━━〔 ⚡ 𝚂𝙸𝚂𝚃𝙴𝙼𝙰 𝙸𝙽𝙵𝙾 ⚡ 〕━━━╮
+┃ 📡 *Ping Real:* ${realPing} ms
+┃ 🔌 *Conexión:* ${connectionStatus}
+┃ 💻 *Plataforma:* ${platform} ${arch}
+┃ 🖥️ *Sistema:* ${release}
+┃ 🌐 *Hostname:* ${hostname}
+┃ 🔧 *CPU:* ${cpuModel.split('@')[0].trim()} (${cpuCores} núcleos)
+┃ 🗂️ *RAM:* ${freeMem} GB libres de ${totalMem} GB
+┃ ⏳ *Uptime Sistema:* ${uptime}
+┃ 🤖 *Uptime Bot:* ${botUptime}
+╰━━━━━━━━━━━━━━━━━━━╯
+    `.trim()
 
-  await conn.sendMessage(m.chat, { text }, { quoted: m })
+    // Editar el mensaje original con los resultados
+    await conn.sendMessage(m.chat, { 
+        text: result, 
+        edit: sentMsg.key 
+    })
 }
 
-handler.command = ["ping", "p"];
-handler.help = ["𝖬𝗒𝗅𝗂𝖽"]
-handler.tags = ["𝖮𝖶𝖭𝖤𝖱"]
-export default handler;
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / (24 * 60 * 60))
+    seconds %= 24 * 60 * 60
+    const hours = Math.floor(seconds / (60 * 60))
+    seconds %= 60 * 60
+    const minutes = Math.floor(seconds / 60)
+    return `${days}d ${hours}h ${minutes}m`
+}
+
+function getConnectionStatus(state) {
+    const states = {
+        0: '🟡 Conectando',
+        1: '🟢 Conectado',
+        2: '🟠 Desconectando',
+        3: '🔴 Desconectado'
+    }
+    return states[state] || '❓ Desconocido'
+}
+
+handler.help = ['ping', 'info']
+handler.tags = ['main', 'info']
+handler.command = ['ping', 'p', 'speed', 'info']
+
+export default handler
