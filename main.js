@@ -25,7 +25,6 @@ global.plugins = Object.create(null)
 global.COMMAND_MAP = new Map()
 
 const SESSION_DIR = global.sessions || "sessions"
-const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
 
 const msgRetryCounterCache = new NodeCache({ stdTTL: 30 })
 const userDevicesCache = new NodeCache({ stdTTL: 120 })
