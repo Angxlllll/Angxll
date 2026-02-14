@@ -80,6 +80,8 @@ async function loadPlugins(dir) {
 
 const handler = await import("./handler.js")
 
+const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
+
 async function startSock() {
   const sock = makeWASocket({
     logger: pino({ level: "silent" }),
