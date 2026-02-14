@@ -30,7 +30,7 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
     `⏱ ${video.timestamp || "--:--"}`
 
   const audioCmd = `${usedPrefix}ytmp3 ${video.url}`
-  const videoCmd = `${usedPrefix}play2 ${video.url}`
+  const videoCmd = `${usedPrefix}play2 ${query}`
 
   await conn.sendMessage(
     m.chat,
