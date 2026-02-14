@@ -3,8 +3,12 @@ import "./config.js"
 import fs from "fs"
 import path from "path"
 import readline from "readline"
+import chalk from "chalk"
+import pino from "pino"
+import NodeCache from "node-cache"
 import { fileURLToPath } from "url"
 
+import baileys from "@whiskeysockets/baileys"
 import store from "./lib/store.js"
 
 const {
