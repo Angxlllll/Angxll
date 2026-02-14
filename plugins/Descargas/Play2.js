@@ -1,5 +1,3 @@
-"use strict"
-
 import axios from "axios"
 import yts from "yt-search"
 import fs from "fs"
