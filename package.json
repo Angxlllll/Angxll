@@ -7,7 +7,7 @@
   },
   "dependencies": {
     "axios": "^1.13.5",
-    "@whiskeysockets/baileys": "npm:wileys",
+ "@whiskeysockets/baileys": "github:gatanina-li/baileys",
     "chalk": "^5.3.0",
     "acrcloud": "^1.4.0",
     "node-cache": "^5.1.2",
