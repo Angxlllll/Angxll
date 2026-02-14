@@ -8,15 +8,14 @@ import pino from "pino"
 import NodeCache from "node-cache"
 import { fileURLToPath } from "url"
 
-import baileys from "@whiskeysockets/baileys"
 import store from "./lib/store.js"
 
-const {
+import {
   makeWASocket,
   DisconnectReason,
   useMultiFileAuthState,
   makeCacheableSignalKeyStore
-} = baileys
+} from "@whiskeysockets/baileys"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
