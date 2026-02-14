@@ -37,3 +37,6 @@ const APIS = Object.freeze({
 const API_KEYS = Object.freeze({
   may: process.env.MAY_API_KEY ?? 'may-684934ab'
 })
+
+global.APIs = APIS
+global.APIKeys = API_KEYS
