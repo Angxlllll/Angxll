@@ -68,16 +68,18 @@ const FAIL = {
   botAdmin: "Necesito admin"
 }
 
-global.dfail = (t, m, c) =>
-  FAIL[t] &&
-  c.sendMessage(
+global.dfail = async (t, m, conn) => {
+  if (!FAIL[t]) return
+
+  conn.sendMessage(
     m.chat,
     {
       text: FAIL[t],
-      ...(global.rcanal || {})
+      ...(await global.rcanal(conn, m))
     },
     { quoted: m }
   )
+}
 
 export async function handler(update) {
   const msgs = update?.messages
