@@ -50,6 +50,6 @@ handler.group = true
 handler.admin = true
 handler.help = ['𝖣𝖾𝗆𝗈𝗍𝖾']
 handler.tags = ['𝖦𝖱𝖴𝖯𝖮𝖲']
-handler.customPrefix = /^.?(demote|quitaradmin|removeadmin)/i
+handler.command = ['demote']
 
 export default handler
