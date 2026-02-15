@@ -14,7 +14,7 @@ const BOT = Object.freeze({
   name: '𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍',
   alias: '𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍',
   packname: '𝖠𝗇𝗀𝖾𝗅 𝖡𝗈𝗍',
-  author: '𝖠𝗇𝗀𝖾𝗅',
+  author: '𝖣𝖾𝗌𝖺𝗋𝗋𝗈𝗅𝗅𝖺𝖽𝗈 𝖯𝗈𝗋 𝖠𝗇𝗀𝖾𝗅',
   session: 'AngelBot',
   banner: 'https://files.catbox.moe/0fer0y.jpg'
 })
