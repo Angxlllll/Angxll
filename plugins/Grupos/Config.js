@@ -5,22 +5,27 @@ import axios from "axios"
 const stickerPath = path.join(process.cwd(), "media", "grupo.webp")
 
 async function ensureSticker() {
-  if (!fs.existsSync(stickerPath)) {
-    let { data } = await axios.get("https://cdn.russellxz.click/9b99dd72.webp", {
-      responseType: "arraybuffer"
-    })
-    fs.mkdirSync(path.dirname(stickerPath), { recursive: true })
-    fs.writeFileSync(stickerPath, Buffer.from(data))
-  }
+  if (fs.existsSync(stickerPath)) return
+
+  const { data } = await axios.get(
+    "https://cdn.russellxz.click/9b99dd72.webp",
+    { responseType: "arraybuffer" }
+  )
+
+  fs.mkdirSync(path.dirname(stickerPath), { recursive: true })
+  fs.writeFileSync(stickerPath, Buffer.from(data))
 }
 
-let handler = async (m, { conn }) => {
-  await ensureSticker()
+const handler = async (m, { conn, command }) => {
+  const cmd = command.toLowerCase()
 
-  let text = m.text.toLowerCase()
+  const abrir =
+    cmd === "abrir" ||
+    cmd === "grupo abrir"
 
-  let abrir = /(abrir|open)/.test(text)
-  let cerrar = /(cerrar|close)/.test(text)
+  const cerrar =
+    cmd === "cerrar" ||
+    cmd === "grupo cerrar"
 
   if (!abrir && !cerrar) return
 
@@ -28,6 +33,8 @@ let handler = async (m, { conn }) => {
     m.chat,
     abrir ? "not_announcement" : "announcement"
   )
+
+  await ensureSticker()
 
   await conn.sendMessage(
     m.chat,
@@ -41,9 +48,11 @@ let handler = async (m, { conn }) => {
   )
 }
 
-handler.help = ["𝖦𝗋𝗎𝗉𝗈 𝖠𝖻𝗋𝗂𝗋", "𝖦𝗋𝗎𝗉𝗈 𝖢𝖾𝗋𝗋𝖺𝗋"]
-handler.tags = ["𝖦𝖱𝖴𝖯𝖮𝖲"]
-handler.command = ['grupo cerrar', 'grupo abrir', 'abrir', 'cerrar']
+handler.help = ["grupo abrir", "grupo cerrar"]
+handler.tags = ["grupos"]
+handler.command = ["grupo abrir", "grupo cerrar", "abrir", "cerrar"]
 handler.group = true
 handler.admin = true
+handler.botAdmin = true
+
 export default handler
