@@ -1,4 +1,3 @@
-import { beforeAll } from "./lib/before.js"
 import "./config.js"
 
 import fs from "fs"
@@ -141,8 +140,6 @@ async function startSock() {
     }
 
     if (connection === "open") {
-   
-      await beforeAll()
 
       console.log(chalk.greenBright("✿ Conectado"))
 
