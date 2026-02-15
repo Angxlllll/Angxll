@@ -36,7 +36,7 @@ const handler = async (m, { conn, participants }) => {
   }
 }
 
-handler.customPrefix = /^\.?kick(\s|$)/i
+handler.command = ['kick']
 handler.help = ["𝖪𝗂𝖼𝗄"]
 handler.tags = ["𝖦𝖱𝖴𝖯𝖮𝖲"]
 handler.group = true
