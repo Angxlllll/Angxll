@@ -63,26 +63,21 @@ const getFlagFromNumber = num => {
 }
 
 const handler = async (m, { conn, getGroupMeta }) => {
-  if (!getGroupMeta) return
-
   await conn.sendMessage(m.chat, {
     react: { text: '🗣️', key: m.key }
   })
 
   const meta = await getGroupMeta()
-  const participants = meta.participants
-  if (!participants?.length) return
+  if (!meta?.participants?.length) return
 
   const lines = []
   const mentions = []
 
-  for (let i = 0; i < participants.length; i++) {
-    const jid = participants[i].id
-    if (!jid || !jid.endsWith('@s.whatsapp.net')) continue
+  for (let i = 0; i < meta.participants.length; i++) {
+    const jid = meta.participants[i].id
+    if (!jid?.endsWith('@s.whatsapp.net')) continue
 
-    const atIndex = jid.indexOf('@')
-    const num = jid.slice(0, atIndex)
-
+    const num = jid.slice(0, jid.indexOf('@'))
     const flag = getFlagFromNumber(num)
 
     lines.push(`┊» ${flag} @${num}`)
