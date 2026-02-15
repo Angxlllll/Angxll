@@ -1,109 +1,115 @@
-"use strict"
+import yts from 'yt-search'
+import axios from 'axios'
+import crypto from 'crypto'
 
-import yts from "yt-search"
-import axios from "axios"
-import crypto from "crypto"
-import fetch from "node-fetch"
-
-const savetube = {
-  key: Buffer.from("C5D58EF67A7584E4A29F6C35BBC4EB12", "hex"),
-
-  decrypt(enc) {
-    const b = Buffer.from(enc.replace(/\s/g, ""), "base64")
-    const iv = b.subarray(0, 16)
-    const data = b.subarray(16)
-    const d = crypto.createDecipheriv("aes-128-cbc", this.key, iv)
-    return JSON.parse(Buffer.concat([d.update(data), d.final()]).toString())
-  },
-
-  async audio(url) {
-    const { data: random } = await axios.get("https://media.savetube.vip/api/random-cdn")
-    const cdn = random.cdn
-
-    const info = await axios.post(`https://${cdn}/v2/info`, { url })
-    if (!info.data?.status) throw "savetube info error"
-
-    const json = this.decrypt(info.data.data)
-    const format = json.audio_formats.find(a => a.quality === 128) || json.audio_formats[0]
-    if (!format) throw "savetube audio error"
-
-    const dl = await axios.post(`https://${cdn}/download`, {
-      id: json.id,
-      key: json.key,
-      downloadType: "audio",
-      quality: String(format.quality)
-    })
-
-    const link = dl.data?.data?.downloadUrl
-    if (!link) throw "savetube link error"
-
-    const buff = await fetch(link).then(r => r.arrayBuffer())
-    return { title: json.title, buffer: Buffer.from(buff) }
-  }
+const BASE_HEADERS = {
+  'User-Agent': 'Mozilla/5.0',
+  'Content-Type': 'application/json'
 }
 
-const savenow = {
-  key: "dfcb6d76f2f6a9894gjkege8a4ab232222",
-
-  async audio(url) {
-    const r = await fetch(
-      `https://p.savenow.to/ajax/download.php?format=mp3&url=${encodeURIComponent(url)}&api=${this.key}`
-    ).then(r => r.json())
-
-    if (!r?.success || !r?.download_url) throw "savenow error"
-
-    const buff = await fetch(r.download_url).then(r => r.arrayBuffer())
-    return { title: r.title || "audio", buffer: Buffer.from(buff) }
-  }
-}
-
-async function downloadAudio(url) {
-  return await Promise.any([
-    savetube.audio(url),
-    savenow.audio(url)
-  ])
-}
-
-const handler = async (m, { conn, args, usedPrefix, command }) => {
+const handler = async (msg, { conn, args, usedPrefix, command }) => {
   const query = args.join(" ").trim()
   if (!query) {
     return conn.sendMessage(
-      m.chat,
-      { text: `✳️ Usa:\n${usedPrefix}${command} <nombre del audio>` },
-      { quoted: m }
+      msg.chat,
+      { text: `✳️ Usa:\n${usedPrefix}${command} <nombre del video>` },
+      { quoted: msg }
     )
   }
 
-  await conn.sendMessage(m.chat, { react: { text: "🎧", key: m.key } })
+  await m.reply('*🔍 Buscando audio...*')
 
   try {
-    const search = await yts(query)
-    const video = search.videos?.[0]
-    if (!video) throw "Sin resultados"
+    const search = await yts(args)
+    if (!search.videos.length) throw new Error('No se encontró el audio.')
 
-    const dl = await downloadAudio(video.url)
-    if (!dl?.buffer) throw "No se pudo descargar"
+    const video = search.videos[0]
+    const url = video.url
 
-    await conn.sendMessage(
-      m.chat,
-      {
-        audio: dl.buffer,
-        mimetype: "audio/mpeg",
-        fileName: `${dl.title}.mp3`
-      },
-      { quoted: m }
-    )
+    await m.reply('*🎧 Descargando audio...*')
+
+    const dl = await savetube.download(url)
+    if (!dl.status) throw new Error(dl.error || 'Error en descarga.')
+
+    await conn.sendMessage(m.chat, {
+      audio: { url: dl.result.download },
+      mimetype: 'audio/mpeg',
+      fileName: `${sanitizeFilename(dl.result.title)}.mp3`
+    }, { quoted: m })
+
   } catch (e) {
-    await conn.sendMessage(
-      m.chat,
-      { text: `❌ Error: ${e}` },
-      { quoted: m }
-    )
+    await m.reply(`❌ Error:\n${e.message}`)
   }
 }
 
-handler.command = ["play"]
-handler.help = ["play <texto>"]
-handler.tags = ["descargas"]
+handler.help = ['play <título>', 'ytmp3 <título>']
+handler.tags = ['download']
+handler.command = ['play', 'ytmp3']
+handler.limit = true
+handler.daftar = true
 
 export default handler
+
+function sanitizeFilename(name = 'audio') {
+  return name.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 100)
+}
+
+const savetube = {
+  key: Buffer.from('C5D58EF67A7584E4A29F6C35BBC4EB12', 'hex'),
+
+  decrypt: (enc) => {
+    const b = Buffer.from(enc.replace(/\s/g, ''), 'base64')
+    const iv = b.subarray(0, 16)
+    const data = b.subarray(16)
+    const d = crypto.createDecipheriv('aes-128-cbc', savetube.key, iv)
+    return JSON.parse(Buffer.concat([d.update(data), d.final()]).toString())
+  },
+
+  download: async (url) => {
+    try {
+      const random = await axios.get('https://media.savetube.vip/api/random-cdn', {
+        headers: { 'User-Agent': BASE_HEADERS['User-Agent'] }
+      })
+
+      const cdn = random.data.cdn
+
+      const info = await axios.post(`https://${cdn}/v2/info`, { url }, {
+        headers: BASE_HEADERS
+      })
+
+      if (!info.data?.status) {
+        return { status: false, error: 'Video no encontrado en API.' }
+      }
+
+      const json = savetube.decrypt(info.data.data)
+
+      const format = json.audio_formats.find(a => a.quality === 128) || json.audio_formats[0]
+      if (!format) return { status: false, error: 'Formato no disponible.' }
+
+      const dlRes = await axios.post(`https://${cdn}/download`, {
+        id: json.id,
+        key: json.key,
+        downloadType: 'audio',
+        quality: String(format.quality)
+      }, {
+        headers: BASE_HEADERS
+      })
+
+      const downloadUrl = dlRes.data?.data?.downloadUrl
+      if (!downloadUrl) {
+        return { status: false, error: 'No se pudo generar el enlace.' }
+      }
+
+      return {
+        status: true,
+        result: {
+          title: json.title,
+          download: downloadUrl
+        }
+      }
+
+    } catch (e) {
+      return { status: false, error: e.message }
+    }
+  }
+}
