@@ -141,6 +141,9 @@ async function startSock() {
     }
 
     if (connection === "open") {
+   
+      await beforeAll()
+
       console.log(chalk.greenBright("✿ Conectado"))
 
       const file = "./lastRestarter.json"
