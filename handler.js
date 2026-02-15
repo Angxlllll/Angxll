@@ -69,7 +69,15 @@ const FAIL = {
 }
 
 global.dfail = (t, m, c) =>
-  FAIL[t] && c.sendMessage(m.chat, { text: FAIL[t] }, { quoted: m })
+  FAIL[t] &&
+  c.sendMessage(
+    m.chat,
+    {
+      text: FAIL[t],
+      ...(global.rcanal || {})
+    },
+    { quoted: m }
+  )
 
 export async function handler(update) {
   const msgs = update?.messages
