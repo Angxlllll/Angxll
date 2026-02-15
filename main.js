@@ -19,7 +19,6 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-global.groupMetadata = new Map()
 global.plugins = Object.create(null)
 global.COMMAND_MAP = new Map()
 
@@ -70,7 +69,7 @@ async function loadPlugins(dir) {
     if (fs.statSync(full).isDirectory()) {
       await loadPlugins(full)
     } else if (f.endsWith(".js")) {
-      const m = await import(`${full}?update=${Date.now()}`)
+      const m = await import(full)
       global.plugins[full] = m.default || m
     }
   }
@@ -113,7 +112,11 @@ async function startSock() {
   sock.ev.on("messages.upsert", ({ messages, type }) => {
     if (type !== "notify") return
     if (!messages?.length) return
-    handler.handler.call(sock, { messages })
+    try {
+      handler.handler.call(sock, { messages })
+    } catch (e) {
+      console.error(e)
+    }
   })
 
   sock.ev.on("connection.update", async update => {
