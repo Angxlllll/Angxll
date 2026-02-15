@@ -99,11 +99,10 @@ async function process(raw) {
   const plugin = global.COMMAND_MAP?.get(command)
   if (!plugin || plugin.disabled) return
 
-  const chatId = m.chat
-  const isGroup = chatId.endsWith("@g.us")
-  const senderJid = m.key?.participant || m.sender
-  const senderNo = DIGITS(senderJid)
-  const isFromMe = !!m.key?.fromMe
+const chatId = m.chat
+const isGroup = m.isGroup
+const senderNo = m.senderNum
+const isFromMe = m.fromMe
 
   const owners = global.owner || []
 
