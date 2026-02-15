@@ -1,81 +1,64 @@
-import { smsg, decodeJid, all } from "./lib/simple.js"
+import { smsg, decodeJid } from "./lib/simple.js"
 
 Error.stackTraceLimit = 0
 
 const DIGITS = s => String(s || "").replace(/\D/g, "")
 
-function lidParser(participants = []) {
-  try {
-    return participants.map(v => ({
-      id: (typeof v?.id === "string" && v.id.endsWith("@lid") && v.jid) ? v.jid : v.id,
-      admin: v?.admin ?? null,
-      raw: v
-    }))
-  } catch {
-    return participants || []
-  }
-}
+const GROUP_TTL = 60000
+const MAX_GROUP_CACHE = 500
+const MAX_CONCURRENT = 5
 
 const groupCache = new Map()
 
+let activeProcesses = 0
+const queue = []
+
+function runNext() {
+  if (queue.length === 0 || activeProcesses >= MAX_CONCURRENT) return
+  activeProcesses++
+  const job = queue.shift()
+  job().finally(() => {
+    activeProcesses--
+    runNext()
+  })
+}
+
+function enqueue(fn) {
+  return new Promise((resolve) => {
+    queue.push(() => fn().then(resolve))
+    runNext()
+  })
+}
+
 async function getGroupMeta(conn, chatId) {
   const cached = groupCache.get(chatId)
-  if (cached && (Date.now() - cached.t < 60000)) {
+
+  if (cached && (Date.now() - cached.t < GROUP_TTL)) {
     return cached.v
   }
+
   const meta = await conn.groupMetadata(chatId)
-  groupCache.set(chatId, { v: meta, t: Date.now() })
-  return meta
-}
 
-async function isAdminByNumber(conn, chatId, number) {
-  try {
-    const meta = await getGroupMeta(conn, chatId)
-    const raw = Array.isArray(meta?.participants) ? meta.participants : []
-    const norm = lidParser(raw)
+  const admins = new Set()
+  const participants = Array.isArray(meta?.participants)
+    ? meta.participants
+    : []
 
-    for (let i = 0; i < raw.length; i++) {
-      const r = raw[i]
-      const n = norm[i]
-      const isAdm =
-        r?.admin === "admin" ||
-        r?.admin === "superadmin" ||
-        n?.admin === "admin" ||
-        n?.admin === "superadmin"
-
-      if (!isAdm) continue
-
-      const ids = [r?.id, r?.jid, n?.id]
-      if (ids.some(x => DIGITS(x) === number)) return true
+  for (const p of participants) {
+    if (p?.admin === "admin" || p?.admin === "superadmin") {
+      admins.add(DIGITS(p.id || p.jid))
     }
-    return false
-  } catch {
-    return false
   }
-}
 
-async function isBotAdminReal(conn, chatId) {
-  try {
-    const meta = await getGroupMeta(conn, chatId)
-    const raw = Array.isArray(meta?.participants) ? meta.participants : []
-    const botJid = decodeJid(conn.user?.id || "")
-    const norm = lidParser(raw)
+  const value = { meta, admins }
 
-    const idx = norm.findIndex(p => p?.id === botJid)
-    if (idx < 0) return false
-
-    const r = raw[idx]
-    const n = norm[idx]
-
-    return (
-      r?.admin === "admin" ||
-      r?.admin === "superadmin" ||
-      n?.admin === "admin" ||
-      n?.admin === "superadmin"
-    )
-  } catch {
-    return false
+  if (groupCache.size > MAX_GROUP_CACHE) {
+    groupCache.clear()
   }
+
+  groupCache.set(chatId, { v: value, t: Date.now() })
+
+  return value
 }
 
 const FAIL = {
@@ -92,20 +75,17 @@ export async function handler(update) {
   const msgs = update?.messages
   if (!msgs) return
 
-  for (const raw of msgs) {
-    if (!raw.message) continue
-    if (raw.key?.remoteJid === "status@broadcast") continue
-    await process.call(this, raw)
-  }
+  await Promise.all(
+    msgs.map(raw => enqueue(() => process.call(this, raw)))
+  )
 }
 
 async function process(raw) {
+  if (!raw?.message) return
+  if (raw.key?.remoteJid === "status@broadcast") return
+
   const m = await smsg(this, raw)
-  if (!m || m.isBaileys) return
-
-  all(m)
-
-  if (!m.text) return
+  if (!m || m.isBaileys || !m.text) return
 
   const prefix = m.text[0]
   if (prefix !== "." && prefix !== "!") return
@@ -116,7 +96,7 @@ async function process(raw) {
   const [cmd, ...args] = body.split(/\s+/)
   const command = cmd.toLowerCase()
 
-  const plugin = global.COMMAND_MAP.get(command)
+  const plugin = global.COMMAND_MAP?.get(command)
   if (!plugin || plugin.disabled) return
 
   const chatId = m.chat
@@ -135,10 +115,21 @@ async function process(raw) {
 
   let isAdmin = false
   let isBotAdmin = false
+  let groupData = null
 
   if (isGroup) {
-    isAdmin = isOwner || await isAdminByNumber(this, chatId, senderNo)
-    isBotAdmin = isOwner || await isBotAdminReal(this, chatId)
+    groupData = await getGroupMeta(this, chatId)
+
+    isAdmin =
+      isOwner ||
+      groupData.admins.has(senderNo)
+
+    const botJid = decodeJid(this.user?.id || "")
+    const botNo = DIGITS(botJid)
+
+    isBotAdmin =
+      isOwner ||
+      groupData.admins.has(botNo)
   }
 
   if (plugin.rowner && !isROwner)
@@ -158,24 +149,18 @@ async function process(raw) {
 
   try {
     await exec.call(this, m, {
-  conn: this,
-  args,
-  command,
-  usedPrefix: prefix,
-  isROwner,
-  isOwner,
-  isAdmin,
-  isBotAdmin,
-  getGroupMeta: isGroup
-    ? async () => {
-        const meta = await getGroupMeta(this, chatId)
-        return {
-          ...meta,
-          participants: lidParser(meta?.participants || [])
-        }
-      }
-    : null
-})
+      conn: this,
+      args,
+      command,
+      usedPrefix: prefix,
+      isROwner,
+      isOwner,
+      isAdmin,
+      isBotAdmin,
+      getGroupMeta: isGroup
+        ? async () => groupData.meta
+        : null
+    })
   } catch (e) {
     console.error("Plugin error:", e)
   }
