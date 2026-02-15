@@ -2,8 +2,9 @@ const handler = async (m, { conn, getGroupMeta }) => {
   if (!getGroupMeta) return
 
   const meta = await getGroupMeta()
+  if (!meta?.participants?.length) return
+
   const participants = meta.participants
-  if (!participants?.length) return
 
   const target =
     m.mentionedJid?.[0] ||
@@ -16,7 +17,9 @@ const handler = async (m, { conn, getGroupMeta }) => {
       { quoted: m }
     )
 
-  const participant = participants.find(p => p.id === target)
+  const participant = participants.find(p =>
+    p.id === target || p.jid === target
+  )
 
   if (!participant)
     return conn.sendMessage(
@@ -25,7 +28,7 @@ const handler = async (m, { conn, getGroupMeta }) => {
       { quoted: m }
     )
 
-  if (participant.admin)
+  if (participant.admin === 'admin' || participant.admin === 'superadmin')
     return conn.sendMessage(
       m.chat,
       {
