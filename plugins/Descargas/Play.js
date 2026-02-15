@@ -7,18 +7,24 @@ const BASE_HEADERS = {
   'Content-Type': 'application/json'
 }
 
-const handler = async (m, { conn, text, command, usedPrefix }) => {
-  if (!text)
-    return conn.sendMessage(m.chat, {
-      text: `✳️ Ingresa el nombre del audio.\nEjemplo: *${usedPrefix + command} Confess your love*`
-    }, { quoted: m })
+const handler = async (msg, { conn, args, usedPrefix, command }) => {
+  const query = args.join(' ').trim()
 
-  await conn.sendMessage(m.chat, {
-    text: '*🎧 Descargando audio...*'
-  }, { quoted: m })
+  if (!query)
+    return conn.sendMessage(
+      msg.chat,
+      { text: `✳️ Usa:\n${usedPrefix}${command} <nombre del video>` },
+      { quoted: msg }
+    )
+
+  await conn.sendMessage(
+    msg.chat,
+    { text: '*🎧 Descargando audio...*' },
+    { quoted: msg }
+  )
 
   try {
-    const search = await yts(text)
+    const search = await yts(query)
     if (!search.videos?.length)
       throw new Error('No se encontró el audio.')
 
@@ -28,16 +34,22 @@ const handler = async (m, { conn, text, command, usedPrefix }) => {
     if (!dl.status)
       throw new Error(dl.error || 'Error en descarga.')
 
-    await conn.sendMessage(m.chat, {
-      audio: { url: dl.result.download },
-      mimetype: 'audio/mpeg',
-      fileName: `${sanitizeFilename(dl.result.title)}.mp3`
-    }, { quoted: m })
+    await conn.sendMessage(
+      msg.chat,
+      {
+        audio: { url: dl.result.download },
+        mimetype: 'audio/mpeg',
+        fileName: `${sanitizeFilename(dl.result.title)}.mp3`
+      },
+      { quoted: msg }
+    )
 
   } catch (e) {
-    await conn.sendMessage(m.chat, {
-      text: `❌ Error:\n${e.message}`
-    }, { quoted: m })
+    await conn.sendMessage(
+      msg.chat,
+      { text: `❌ Error:\n${e.message}` },
+      { quoted: msg }
+    )
   }
 }
 
@@ -61,7 +73,9 @@ const savetube = {
     const iv = buffer.subarray(0, 16)
     const data = buffer.subarray(16)
     const decipher = crypto.createDecipheriv('aes-128-cbc', this.key, iv)
-    return JSON.parse(Buffer.concat([decipher.update(data), decipher.final()]).toString())
+    return JSON.parse(
+      Buffer.concat([decipher.update(data), decipher.final()]).toString()
+    )
   },
 
   async download(url) {
@@ -72,7 +86,8 @@ const savetube = {
       )
 
       const cdn = random?.cdn
-      if (!cdn) return { status: false, error: 'No se obtuvo CDN.' }
+      if (!cdn)
+        return { status: false, error: 'No se obtuvo CDN.' }
 
       const { data: info } = await axios.post(
         `https://${cdn}/v2/info`,
