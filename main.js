@@ -1,3 +1,4 @@
+import './lib/rcanal.js'
 import "./config.js"
 
 import fs from "fs"
