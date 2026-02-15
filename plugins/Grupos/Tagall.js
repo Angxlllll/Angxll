@@ -46,12 +46,10 @@ const prefixes = Object.keys(countryFlags).sort((a, b) => b.length - a.length)
 const flagCache = new Map()
 
 const getFlagFromNumber = num => {
-  const cached = flagCache.get(num)
-  if (cached) return cached
+  if (flagCache.has(num)) return flagCache.get(num)
 
   let flag = '🏳️'
-  for (let i = 0; i < prefixes.length; i++) {
-    const p = prefixes[i]
+  for (const p of prefixes) {
     if (num.startsWith(p)) {
       flag = countryFlags[p]
       break
@@ -67,17 +65,23 @@ const handler = async (m, { conn, getGroupMeta }) => {
     react: { text: '🗣️', key: m.key }
   })
 
-  const meta = await getGroupMeta()
-  if (!meta?.participants?.length) return
+  const meta = await getGroupMeta?.()
+  if (!meta) return
+
+  const participants = Array.isArray(meta.participants)
+    ? meta.participants
+    : []
+
+  if (!participants.length) return
 
   const lines = []
   const mentions = []
 
-  for (let i = 0; i < meta.participants.length; i++) {
-    const jid = meta.participants[i].id
-    if (!jid?.endsWith('@s.whatsapp.net')) continue
+  for (const p of participants) {
+    const jid = p.jid
+    if (!jid || !jid.endsWith('@s.whatsapp.net')) continue
 
-    const num = jid.slice(0, jid.indexOf('@'))
+    const num = jid.split('@')[0]
     const flag = getFlagFromNumber(num)
 
     lines.push(`┊» ${flag} @${num}`)
