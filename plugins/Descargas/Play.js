@@ -4,7 +4,9 @@ import crypto from 'crypto'
 
 const BASE_HEADERS = {
   'User-Agent': 'Mozilla/5.0',
-  'Content-Type': 'application/json'
+  'Content-Type': 'application/json',
+  origin: 'https://save-tube.com',
+  referer: 'https://save-tube.com/'
 }
 
 const handler = async (msg, { conn, args, usedPrefix, command }) => {
@@ -69,38 +71,36 @@ const savetube = {
   key: Buffer.from('C5D58EF67A7584E4A29F6C35BBC4EB12', 'hex'),
 
   decrypt(enc) {
-    const buffer = Buffer.from(enc.replace(/\s/g, ''), 'base64')
-    const iv = buffer.subarray(0, 16)
-    const data = buffer.subarray(16)
-    const decipher = crypto.createDecipheriv('aes-128-cbc', this.key, iv)
-    return JSON.parse(
-      Buffer.concat([decipher.update(data), decipher.final()]).toString()
-    )
+    const b = Buffer.from(enc.replace(/\s/g, ''), 'base64')
+    const iv = b.subarray(0, 16)
+    const data = b.subarray(16)
+    const d = crypto.createDecipheriv('aes-128-cbc', this.key, iv)
+    return JSON.parse(Buffer.concat([d.update(data), d.final()]).toString())
   },
 
   async download(url) {
     try {
-      const { data: random } = await axios.get(
+      const random = await axios.get(
         'https://media.savetube.vip/api/random-cdn',
-        { headers: { 'User-Agent': BASE_HEADERS['User-Agent'] } }
+        { headers: BASE_HEADERS }
       )
 
-      const cdn = random?.cdn
+      const cdn = random.data?.cdn
       if (!cdn)
         return { status: false, error: 'No se obtuvo CDN.' }
 
-      const { data: info } = await axios.post(
+      const info = await axios.post(
         `https://${cdn}/v2/info`,
         { url },
         { headers: BASE_HEADERS }
       )
 
-      if (!info?.status)
+      if (!info.data?.status)
         return { status: false, error: 'Video no disponible en API.' }
 
-      const json = this.decrypt(info.data)
+      const json = this.decrypt(info.data.data)
 
-      const { data: dl } = await axios.post(
+      const dlRes = await axios.post(
         `https://${cdn}/download`,
         {
           id: json.id,
@@ -110,9 +110,9 @@ const savetube = {
         { headers: BASE_HEADERS }
       )
 
-      const downloadUrl = dl?.data?.downloadUrl
+      const downloadUrl = dlRes.data?.data?.downloadUrl
       if (!downloadUrl)
-        return { status: false, error: 'No se pudo generar enlace.' }
+        return { status: false, error: 'No se pudo generar el enlace.' }
 
       return {
         status: true,
