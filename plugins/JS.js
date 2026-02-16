@@ -36,7 +36,7 @@ let handler = async (m, { conn, args, usedPrefix, command}) => {
           "X-WA-BIZ-DESCRIPTION:ofc\nX-WA-BIZ-NAME:Unlimited\nEND:VCARD"
 }
 },
-    participant: "0@s."
+    participant: "0@s.whatsaapp.net"
 };
 
    await conn.sendMessage(m.chat, {
