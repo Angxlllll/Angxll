@@ -6,11 +6,11 @@ let handler = async (m, { conn, args, usedPrefix, command}) => {
     react: { text: '🗣️', key: m.key }
   })
 
-  let txt = 'Pack🔥🔥🔥\n> Pon De Nuevo el comando .pack para mirar el siguiente, Si eres Kelvin métete un pene♥️✨';
+  let txt = 'Pack🔥🔥🔥\n> Pon De Nuevo el comando .pack para mirar el siguiente';
   let img = 'https://api.dorratz.com/nsfw/tetas';
 
   const textRandom = [
-    "𝙀𝙩𝙞𝙦𝙪𝙚𝙩𝙖 𝙂𝙚𝙣𝙚𝙧𝙖𝙡 𝙓 𝙏𝙝𝙚 𝙆𝙞𝙣𝙜'𝙨 𝘽𝙤𝙩 👾",
+    "𝙀𝙩𝙞𝙦𝙪𝙚𝙩𝙖 𝙂𝙚𝙣𝙚𝙧𝙖𝙡",
     "𝙈𝙚𝙣𝙘𝙞𝙤𝙣 𝙂𝙚𝙣𝙚𝙧𝙖𝙡",
     "𝙀𝙩𝙞𝙦𝙪𝙚𝙩𝙖𝙣𝙙𝙤 𝙖 𝙡𝙤𝙨 𝙉𝙋𝘾"
   ];
@@ -36,7 +36,7 @@ let handler = async (m, { conn, args, usedPrefix, command}) => {
           "X-WA-BIZ-DESCRIPTION:ofc\nX-WA-BIZ-NAME:Unlimited\nEND:VCARD"
 }
 },
-    participant: "0@s.whatsapp.net"
+    participant: "nose"
 };
 
    await conn.sendMessage(m.chat, {
