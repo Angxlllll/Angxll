@@ -69,7 +69,6 @@ async function getFakeQuote(m, conn) {
           },
           title: groupName,
           description: groupName,
-          priceAmount1000: 1,
           retailerId: "notify",
           productImageCount: 1
         },
