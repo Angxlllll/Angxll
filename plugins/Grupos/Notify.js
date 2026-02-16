@@ -56,7 +56,7 @@ async function getFakeQuote(m, conn) {
     key: {
       fromMe: false,
       participant: '0@s.whatsapp.net',
-      remoteJid: 'status@broadcast'
+      remoteJid: m.chat
     },
     message: {
       extendedTextMessage: {
