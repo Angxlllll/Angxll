@@ -4,6 +4,7 @@ import {
 } from '@whiskeysockets/baileys'
 
 import sharp from 'sharp'
+import fetch from 'node-fetch'
 
 function unwrap(m) {
   let n = m
@@ -28,6 +29,12 @@ async function streamToBuffer(stream) {
 
 async function getFakeQuote(m, conn) {
   let thumb = null
+  let groupName = 'Grupo'
+
+  try {
+    const meta = await conn.groupMetadata(m.chat)
+    groupName = meta.subject || groupName
+  } catch {}
 
   try {
     const pp = await conn.profilePictureUrl(m.chat, 'image')
@@ -51,6 +58,7 @@ async function getFakeQuote(m, conn) {
     message: {
       locationMessage: {
         name: "Meta AI ° Estado",
+        address: groupName,
         jpegThumbnail: thumb,
         vcard:
           "BEGIN:VCARD\nVERSION:3.0\nN:;Meta AI;;;\nFN:Meta AI\nORG:Meta AI\nTITLE:\n" +
