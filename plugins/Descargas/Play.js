@@ -57,9 +57,7 @@ const handler = async (msg, { conn, args, usedPrefix, command }) => {
 
 handler.help = ['play <título>', 'ytmp3 <título>']
 handler.tags = ['download']
-handler.command = ['play', 'ytmp3']
-handler.limit = true
-handler.daftar = true
+handler.command = ['play', 'ytamp3']
 
 export default handler
 
@@ -126,10 +124,7 @@ const savetube = {
         status: true,
         result: {
           title: json.title,
-          duration: json.duration,
-          thumbnail: json.thumbnail,
-          download: downloadUrl,
-          quality: format.label
+          download: downloadUrl
         }
       }
 
