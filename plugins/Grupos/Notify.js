@@ -96,9 +96,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
             {
               text: qtext,
               contextInfo: {
-                mentionedJid,
-                forwardingScore: 1,
-                isForwarded: true
+                mentionedJid
               }
             },
             { quoted: fquote }
@@ -114,9 +112,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
       {
         text,
         contextInfo: {
-          mentionedJid,
-          forwardingScore: 1,
-          isForwarded: true
+          mentionedJid
         }
       },
       { quoted: fquote }
@@ -156,9 +152,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
     {
       ...payload,
       contextInfo: {
-        mentionedJid,
-        forwardingScore: 1,
-        isForwarded: true
+        mentionedJid
       }
     },
     { quoted: fquote }
