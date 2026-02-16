@@ -36,7 +36,7 @@ let handler = async (m, { conn, args, usedPrefix, command}) => {
           "X-WA-BIZ-DESCRIPTION:ofc\nX-WA-BIZ-NAME:Unlimited\nEND:VCARD"
 }
 },
-    participant: "nose"
+    participant: "0@s."
 };
 
    await conn.sendMessage(m.chat, {
