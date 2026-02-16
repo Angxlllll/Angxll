@@ -28,7 +28,7 @@ async function streamToBuffer(stream) {
 }
 
 async function getFakeQuote(m, conn) {
-  const FAKE_SENDER = '867051314767696@s.whatsapp.net'
+  const FAKE_SENDER = '867051314767696@bot'
 
   let groupName = 'Chat'
   let thumb = null
