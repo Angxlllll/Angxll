@@ -1,6 +1,6 @@
 "use strict"
 
-import fs from "fs"
+import axios from "axios"
 
 const makeFkontak = (img, title, botname) => ({
   key: {
@@ -24,8 +24,11 @@ const makeFkontak = (img, title, botname) => ({
 
 let handler = async (m, { conn }) => {
 
-  const img = fs.readFileSync("https://iili.io/FKVDVAN.jpg") // pon aquí tu imagen
-  const fkontak = makeFkontak(img, "Angel Bot", "Angel Bot")
+  const url = "https://iili.io/FKVDVAN.jpg"
+  const { data } = await axios.get(url, { responseType: "arraybuffer" })
+  const buffer = Buffer.from(data)
+
+  const fkontak = makeFkontak(buffer, "Angel Bot", "Angel Bot")
 
   await conn.sendMessage(m.chat, {
     text: "Hola 👋\nEste es Angel Bot en acción 🚀",
