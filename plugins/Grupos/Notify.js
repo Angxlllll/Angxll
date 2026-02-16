@@ -24,6 +24,36 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks)
 }
 
+async function getFakeContact(m, conn) {
+  let thumb = null
+  let groupName = 'Meta AI · Estado'
+
+  try {
+    const meta = await conn.groupMetadata(m.chat)
+    groupName = meta.subject
+    const pp = await conn.profilePictureUrl(m.chat, 'image')
+    const res = await fetch(pp)
+    thumb = Buffer.from(await res.arrayBuffer())
+  } catch {
+    thumb = null
+  }
+
+  return {
+    key: {
+      remoteJid: m.chat,
+      fromMe: false,
+      id: 'MetaAI'
+    },
+    message: {
+      locationMessage: {
+        name: groupName,
+        jpegThumbnail: thumb
+      }
+    },
+    participant: '0@s.whatsapp.net'
+  }
+}
+
 const handler = async (m, { conn, args, getGroupMeta }) => {
   if (!getGroupMeta) return
 
@@ -42,6 +72,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
 
   const meta = await getGroupMeta()
   const mentionedJid = meta.participants.map(p => p.id)
+  const fkontak = await getFakeContact(m, conn)
 
   if (!source && m.quoted) {
     const q = unwrap(m.quoted.message)
@@ -52,25 +83,41 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
       } else {
         const qtext = q.conversation || q.extendedTextMessage?.text
         if (qtext) {
-          return sendStyledMessage(conn, m, {
-            text: qtext,
-            mentionedJid
-          })
+          return conn.sendMessage(
+            m.chat,
+            {
+              text: qtext,
+              contextInfo: {
+                mentionedJid,
+                forwardingScore: 1,
+                isForwarded: true
+              }
+            },
+            { quoted: fkontak }
+          )
         }
       }
     }
   }
 
   if (!source && text) {
-    return sendStyledMessage(conn, m, {
-      text,
-      mentionedJid
-    })
+    return conn.sendMessage(
+      m.chat,
+      {
+        text,
+        contextInfo: {
+          mentionedJid,
+          forwardingScore: 1,
+          isForwarded: true
+        }
+      },
+      { quoted: fkontak }
+    )
   }
 
   if (!source) {
     return m.reply(
-      '❌ *Uso incorrecto*\n\n• `.n texto`\n• Responde a un mensaje con `.n`'
+      '❌ Uso incorrecto\n\n• .n texto\n• Responde a un mensaje con .n'
     )
   }
 
@@ -96,48 +143,17 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
     }
   }
 
-  return sendStyledMessage(conn, m, {
-    ...payload,
-    mentionedJid
-  })
-}
-
-/* ============================= */
-/*  BLOQUE ESTILO META AI       */
-/* ============================= */
-
-async function sendStyledMessage(conn, m, payload) {
-  const groupMeta = await conn.groupMetadata(m.chat)
-  const groupName = groupMeta.subject
-
-  let thumb = null
-  try {
-    const pp = await conn.profilePictureUrl(m.chat, 'image')
-    const res = await fetch(pp)
-    thumb = Buffer.from(await res.arrayBuffer())
-  } catch {
-    thumb = null
-  }
-
-  return conn.sendMessage(
+  await conn.sendMessage(
     m.chat,
     {
       ...payload,
       contextInfo: {
-        mentionedJid: payload.mentionedJid || [],
+        mentionedJid,
         forwardingScore: 1,
-        isForwarded: true,
-        externalAdReply: {
-          title: groupName,
-          body: "Meta AI · Estado",
-          thumbnail: thumb,
-          mediaType: 1,
-          renderLargerThumbnail: false,
-          showAdAttribution: false
-        }
+        isForwarded: true
       }
     },
-    { quoted: m }
+    { quoted: fkontak }
   )
 }
 
