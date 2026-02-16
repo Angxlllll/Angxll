@@ -54,10 +54,10 @@ async function getFakeQuote(m, conn) {
 
   return {
     key: {
-      fromMe: false,
-      participant: '0@s.whatsapp.net',
-      remoteJid: m.chat
-    },
+  fromMe: false,
+  participant: m.chat,
+  remoteJid: m.chat
+},
     message: {
       extendedTextMessage: {
         text: 'Meta AI',
