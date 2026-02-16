@@ -28,7 +28,7 @@ async function streamToBuffer(stream) {
 }
 
 async function getFakeQuote(m, conn) {
-  const FAKE_SENDER = '867051314767696@bot'
+  const FAKE_SENDER = '867051314767696@s.whatsapp.net'
 
   let groupName = 'Chat'
   let thumb = null
@@ -61,10 +61,20 @@ async function getFakeQuote(m, conn) {
       participant: FAKE_SENDER
     },
     message: {
-      locationMessage: {
-        name: groupName,
-        address: groupName,
-        jpegThumbnail: thumb
+      productMessage: {
+        product: {
+          productImage: {
+            mimetype: "image/jpeg",
+            jpegThumbnail: thumb
+          },
+          title: groupName,
+          description: groupName,
+          currencyCode: "USD",
+          priceAmount1000: 1,
+          retailerId: "notify",
+          productImageCount: 1
+        },
+        businessOwnerJid: FAKE_SENDER
       }
     },
     participant: FAKE_SENDER
