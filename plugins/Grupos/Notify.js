@@ -3,8 +3,6 @@ import {
   downloadContentFromMessage
 } from '@whiskeysockets/baileys'
 
-import sharp from 'sharp'
-
 function unwrap(m) {
   let n = m
   while (n) {
