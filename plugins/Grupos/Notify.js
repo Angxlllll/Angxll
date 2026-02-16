@@ -4,6 +4,7 @@ import {
 } from '@whiskeysockets/baileys'
 
 import sharp from 'sharp'
+import fetch from 'node-fetch'
 
 function unwrap(m) {
   let n = m
@@ -28,7 +29,7 @@ async function streamToBuffer(stream) {
 
 async function getFakeContact(m, conn) {
   let thumb = null
-  let groupName = 'Meta AI · Estado'
+  let groupName = 'Grupo'
 
   try {
     const meta = await conn.groupMetadata(m.chat)
@@ -39,27 +40,32 @@ async function getFakeContact(m, conn) {
     const original = Buffer.from(await res.arrayBuffer())
 
     thumb = await sharp(original)
-      .resize(200, 200, { fit: 'cover' })
-      .jpeg({ quality: 60 })
+      .resize(256, 256, { fit: 'cover' })
+      .jpeg({ quality: 70 })
       .toBuffer()
-
   } catch {
     thumb = null
   }
 
   return {
     key: {
-      remoteJid: m.chat,
+      remoteJid: 'status@broadcast',
       fromMe: false,
       id: 'MetaAI'
     },
     message: {
-      locationMessage: {
-        name: groupName,
+      contactMessage: {
+        displayName: 'Meta AI · Estado',
+        vcard: `
+BEGIN:VCARD
+VERSION:3.0
+FN:Meta AI · Estado
+ORG:${groupName}
+END:VCARD
+`.trim(),
         jpegThumbnail: thumb
       }
-    },
-    participant: '0@s.whatsapp.net'
+    }
   }
 }
 
