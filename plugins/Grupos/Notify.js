@@ -62,7 +62,7 @@ async function getFakeQuote(m, conn) {
     },
     message: {
       locationMessage: {
-        name: 'Meta AI • Estado',
+        name: groupName,
         address: groupName,
         jpegThumbnail: thumb
       }
