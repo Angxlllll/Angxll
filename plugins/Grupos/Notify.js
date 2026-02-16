@@ -28,6 +28,12 @@ async function streamToBuffer(stream) {
 
 async function getFakeQuote(m, conn) {
   let thumb = null
+  let groupName = 'Grupo'
+
+  try {
+    const meta = await conn.groupMetadata(m.chat)
+    groupName = meta.subject || groupName
+  } catch {}
 
   try {
     const pp = await conn.profilePictureUrl(m.chat, 'image')
@@ -46,16 +52,16 @@ async function getFakeQuote(m, conn) {
     key: {
       remoteJid: m.chat,
       fromMe: false,
-      id: 'MetaAI'
+      id: '3EB0METAESTADO',
+      participant: '5212751073475@s.whatsapp.net'
     },
     message: {
       locationMessage: {
-        name: 'Meta AI · Estado',
-        address: "Team V4'     24/7",
+        name: 'Meta AI ° Estado',
+        address: groupName,
         jpegThumbnail: thumb
       }
-    },
-    participant: '0@s.whatsapp.net'
+    }
   }
 }
 
