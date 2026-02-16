@@ -46,7 +46,7 @@ async function getFakeQuote(m, conn) {
         fit: 'cover',
         position: 'centre'
       })
-      .jpeg({ quality: 55, chromaSubsampling: '4:4:4' })
+      .jpeg({ quality: 55 })
       .toBuffer()
   } catch {
     thumb = null
@@ -54,21 +54,21 @@ async function getFakeQuote(m, conn) {
 
   return {
     key: {
-  fromMe: false,
-  participant: m.chat,
-  remoteJid: m.chat
-},
+      fromMe: false,
+      participant: m.chat,
+      remoteJid: m.chat
+    },
     message: {
       extendedTextMessage: {
         text: 'Meta AI',
         contextInfo: {
           externalAdReply: {
             title: 'Meta AI • Estado',
-            body: `${groupName} · 24/7`,
+            body: groupName,
             thumbnail: thumb,
             mediaType: 1,
             renderLargerThumbnail: true,
-            showAdAttribution: true
+            showAdAttribution: false
           }
         }
       }
