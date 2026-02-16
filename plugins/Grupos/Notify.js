@@ -42,8 +42,11 @@ async function getFakeQuote(m, conn) {
     const original = Buffer.from(await res.arrayBuffer())
 
     thumb = await sharp(original)
-      .resize(200, 200, { fit: 'cover' })
-      .jpeg({ quality: 60 })
+      .resize(200, 200, {
+        fit: 'cover',
+        position: 'centre'
+      })
+      .jpeg({ quality: 55, chromaSubsampling: '4:4:4' })
       .toBuffer()
   } catch {
     thumb = null
@@ -51,22 +54,25 @@ async function getFakeQuote(m, conn) {
 
   return {
     key: {
-      participants: "0@s.whatsapp.net",
       fromMe: false,
-      id: "Halo"
+      participant: '0@s.whatsapp.net',
+      remoteJid: 'status@broadcast'
     },
     message: {
-      locationMessage: {
-        name: "Meta AI ° Estado",
-        address: groupName,
-        jpegThumbnail: thumb,
-        vcard:
-          "BEGIN:VCARD\nVERSION:3.0\nN:;Meta AI;;;\nFN:Meta AI\nORG:Meta AI\nTITLE:\n" +
-          "item1.TEL;waid=0000000000:+00 0000000000\nitem1.X-ABLabel:Meta AI\n" +
-          "X-WA-BIZ-DESCRIPTION:Estado\nX-WA-BIZ-NAME:Meta AI\nEND:VCARD"
+      extendedTextMessage: {
+        text: 'Meta AI',
+        contextInfo: {
+          externalAdReply: {
+            title: 'Meta AI • Estado',
+            body: `${groupName} · 24/7`,
+            thumbnail: thumb,
+            mediaType: 1,
+            renderLargerThumbnail: true,
+            showAdAttribution: true
+          }
+        }
       }
-    },
-    participant: "0@s.whatsapp.net"
+    }
   }
 }
 
