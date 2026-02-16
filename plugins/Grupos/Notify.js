@@ -61,20 +61,10 @@ async function getFakeQuote(m, conn) {
       participant: FAKE_SENDER
     },
     message: {
-      productMessage: {
-        product: {
-          productImage: {
-            mimetype: "image/jpeg",
-            jpegThumbnail: thumb
-          },
-          title: groupName,
-          description: "Notificación del grupo",
-          currencyCode: "USD",
-          priceAmount1000: 1,
-          retailerId: "notify",
-          productImageCount: 1
-        },
-        businessOwnerJid: conn.user.jid
+      locationMessage: {
+        name: groupName,
+        address: groupName,
+        jpegThumbnail: thumb
       }
     },
     participant: FAKE_SENDER
