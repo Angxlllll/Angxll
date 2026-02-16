@@ -53,28 +53,34 @@ async function getFakeQuote(m, conn) {
     }
   } catch {}
 
-  const thumb = await getThumb(conn, m.chat)
+  let thumb = null
+
+  try {
+    const pp = await conn.profilePictureUrl(m.chat, 'image')
+    const res = await fetch(pp)
+    thumb = Buffer.from(await res.arrayBuffer())
+  } catch {
+    const fallback = await fetch('https://i.imgur.com/6XZQW3p.jpeg')
+    thumb = Buffer.from(await fallback.arrayBuffer())
+  }
 
   return {
     key: {
       fromMe: false,
-      participant: m.isGroup ? m.chat : m.sender,
-      remoteJid: m.chat
+      participant: m.isGroup ? m.sender : m.chat,
+      remoteJid: m.chat,
+      id: 'FAKEQUOTE'
     },
     message: {
-      extendedTextMessage: {
-        text: 'Meta AI',
-        contextInfo: {
-          externalAdReply: {
-            title: 'Meta AI • Estado',
-            body: groupName,
-            thumbnail: thumb,
-            mediaType: 1,
-            renderLargerThumbnail: true,
-            showAdAttribution: false,
-            mediaUrl: 'https://whatsapp.com',
-            sourceUrl: 'https://whatsapp.com'
-          }
+      conversation: 'Meta AI',
+      contextInfo: {
+        externalAdReply: {
+          title: 'Meta AI • Estado',
+          body: groupName,
+          thumbnail: thumb,
+          mediaType: 1,
+          renderLargerThumbnail: true,
+          showAdAttribution: false
         }
       }
     }
