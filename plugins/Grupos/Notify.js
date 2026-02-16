@@ -28,12 +28,8 @@ async function streamToBuffer(stream) {
 
 async function getFakeQuote(m, conn) {
   let thumb = null
-  let name = 'Meta AI · Estado'
 
   try {
-    const meta = await conn.groupMetadata(m.chat)
-    name = meta.subject
-
     const pp = await conn.profilePictureUrl(m.chat, 'image')
     const res = await fetch(pp)
     const original = Buffer.from(await res.arrayBuffer())
@@ -54,7 +50,8 @@ async function getFakeQuote(m, conn) {
     },
     message: {
       locationMessage: {
-        name,
+        name: 'Meta AI · Estado',
+        address: "Team V4'     24/7",
         jpegThumbnail: thumb
       }
     },
@@ -95,9 +92,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
             m.chat,
             {
               text: qtext,
-              contextInfo: {
-                mentionedJid
-              }
+              contextInfo: { mentionedJid }
             },
             { quoted: fquote }
           )
@@ -111,9 +106,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
       m.chat,
       {
         text,
-        contextInfo: {
-          mentionedJid
-        }
+        contextInfo: { mentionedJid }
       },
       { quoted: fquote }
     )
@@ -151,9 +144,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
     m.chat,
     {
       ...payload,
-      contextInfo: {
-        mentionedJid
-      }
+      contextInfo: { mentionedJid }
     },
     { quoted: fquote }
   )
