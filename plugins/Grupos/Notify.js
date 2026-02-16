@@ -53,9 +53,15 @@ async function getFakeContact(m, conn) {
       id: 'MetaAI'
     },
     message: {
-      locationMessage: {
-        name: groupName,
-        jpegThumbnail: thumb
+      contactMessage: {
+        displayName: groupName,
+        jpegThumbnail: thumb,
+        vcard:
+          `BEGIN:VCARD
+VERSION:3.0
+FN:${groupName}
+ORG:Meta AI
+END:VCARD`
       }
     },
     participant: '0@s.whatsapp.net'
