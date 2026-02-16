@@ -26,13 +26,13 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks)
 }
 
-async function getFakeContact(m, conn) {
+async function getFakeQuote(m, conn) {
   let thumb = null
-  let groupName = 'Meta AI · Estado'
+  let name = 'Meta AI · Estado'
 
   try {
     const meta = await conn.groupMetadata(m.chat)
-    groupName = meta.subject
+    name = meta.subject
 
     const pp = await conn.profilePictureUrl(m.chat, 'image')
     const res = await fetch(pp)
@@ -53,15 +53,9 @@ async function getFakeContact(m, conn) {
       id: 'MetaAI'
     },
     message: {
-      contactMessage: {
-        displayName: groupName,
-        jpegThumbnail: thumb,
-        vcard:
-          `BEGIN:VCARD
-VERSION:3.0
-FN:${groupName}
-ORG:Meta AI
-END:VCARD`
+      locationMessage: {
+        name,
+        jpegThumbnail: thumb
       }
     },
     participant: '0@s.whatsapp.net'
@@ -86,7 +80,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
 
   const meta = await getGroupMeta()
   const mentionedJid = meta.participants.map(p => p.id)
-  const fkontak = await getFakeContact(m, conn)
+  const fquote = await getFakeQuote(m, conn)
 
   if (!source && m.quoted) {
     const q = unwrap(m.quoted.message)
@@ -107,7 +101,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
                 isForwarded: true
               }
             },
-            { quoted: fkontak }
+            { quoted: fquote }
           )
         }
       }
@@ -125,7 +119,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
           isForwarded: true
         }
       },
-      { quoted: fkontak }
+      { quoted: fquote }
     )
   }
 
@@ -167,7 +161,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
         isForwarded: true
       }
     },
-    { quoted: fkontak }
+    { quoted: fquote }
   )
 }
 
