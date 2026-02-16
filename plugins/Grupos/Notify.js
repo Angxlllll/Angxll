@@ -3,6 +3,9 @@ import {
   downloadContentFromMessage
 } from '@whiskeysockets/baileys'
 
+import sharp from 'sharp'
+import fetch from 'node-fetch'
+
 function unwrap(m) {
   let n = m
   while (n) {
@@ -24,15 +27,50 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks)
 }
 
+async function getFakeQuote(m, conn) {
+  let groupName = 'Chat'
+  let thumb = null
+
+  try {
+    if (m.isGroup) {
+      const meta = await conn.groupMetadata(m.chat)
+      groupName = meta.subject || groupName
+    }
+  } catch {}
+
+  try {
+    const pp = await conn.profilePictureUrl(m.chat, 'image')
+    const res = await fetch(pp)
+    const original = Buffer.from(await res.arrayBuffer())
+
+    thumb = await sharp(original)
+      .resize(200, 200, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: 60 })
+      .toBuffer()
+  } catch {
+    thumb = null
+  }
+
+  return {
+    key: {
+      remoteJid: m.chat,
+      fromMe: false,
+      id: 'Angel',
+      participant: conn.user.id
+    },
+    message: {
+      locationMessage: {
+        name: 'Meta AI • Estado',
+        address: groupName,
+        jpegThumbnail: thumb
+      }
+    },
+    participant: conn.user.id
+  }
+}
+
 const handler = async (m, { conn, args, getGroupMeta }) => {
   if (!getGroupMeta) return
-
-  await conn.sendMessage(m.chat, {
-    react: {
-      text: '🥀',
-      key: m.key
-    }
-  })
 
   const text = args.length ? args.join(' ') : ''
   const root = unwrap(m.message)
@@ -49,6 +87,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
 
   const meta = await getGroupMeta()
   const mentionedJid = meta.participants.map(p => p.id)
+  const fquote = await getFakeQuote(m, conn)
 
   if (!source && m.quoted) {
     const q = unwrap(m.quoted.message)
@@ -63,13 +102,9 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
             m.chat,
             {
               text: qtext,
-              contextInfo: {
-                mentionedJid,
-                forwardingScore: 1,
-                isForwarded: true
-              }
+              contextInfo: { mentionedJid }
             },
-            { quoted: m }
+            { quoted: fquote }
           )
         }
       }
@@ -81,13 +116,9 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
       m.chat,
       {
         text,
-        contextInfo: {
-          mentionedJid,
-          forwardingScore: 1,
-          isForwarded: true
-        }
+        contextInfo: { mentionedJid }
       },
-      { quoted: m }
+      { quoted: fquote }
     )
   }
 
@@ -95,22 +126,6 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
     return m.reply(
       '❌ Uso incorrecto\n\n• .n texto\n• Responde a un mensaje con .n'
     )
-  }
-
-  if (m.quoted) {
-    await conn.sendMessage(
-      m.chat,
-      {
-        forward: m.quoted.fakeObj,
-        contextInfo: {
-          mentionedJid,
-          forwardingScore: 1,
-          isForwarded: true
-        }
-      },
-      { quoted: m }
-    )
-    return
   }
 
   const media = await streamToBuffer(
@@ -139,13 +154,9 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
     m.chat,
     {
       ...payload,
-      contextInfo: {
-        mentionedJid,
-        forwardingScore: 1,
-        isForwarded: true
-      }
+      contextInfo: { mentionedJid }
     },
-    { quoted: m }
+    { quoted: fquote }
   )
 }
 
