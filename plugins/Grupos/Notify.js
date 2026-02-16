@@ -28,6 +28,8 @@ async function streamToBuffer(stream) {
 }
 
 async function getFakeQuote(m, conn) {
+  const FAKE_SENDER = '867051314767696@bot'
+
   let groupName = 'Chat'
   let thumb = null
 
@@ -55,8 +57,8 @@ async function getFakeQuote(m, conn) {
     key: {
       remoteJid: m.chat,
       fromMe: false,
-      id: 'Angel',
-      participant: conn.user.id
+      id: 'FAKE_ID',
+      participant: FAKE_SENDER
     },
     message: {
       locationMessage: {
@@ -65,7 +67,7 @@ async function getFakeQuote(m, conn) {
         jpegThumbnail: thumb
       }
     },
-    participant: conn.user.id
+    participant: FAKE_SENDER
   }
 }
 
