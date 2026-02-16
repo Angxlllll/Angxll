@@ -4,7 +4,6 @@ import {
 } from '@whiskeysockets/baileys'
 
 import sharp from 'sharp'
-import fetch from 'node-fetch'
 
 function unwrap(m) {
   let n = m
@@ -27,58 +26,6 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks)
 }
 
-async function getFakeQuote(m, conn) {
-  const FAKE_SENDER = '867051314767696@bot'
-
-  let groupName = 'Chat'
-  let thumb = null
-
-  try {
-    if (m.isGroup) {
-      const meta = await conn.groupMetadata(m.chat)
-      groupName = meta.subject || groupName
-    }
-  } catch {}
-
-  try {
-    const pp = await conn.profilePictureUrl(m.chat, 'image')
-    const res = await fetch(pp)
-    const original = Buffer.from(await res.arrayBuffer())
-
-    thumb = await sharp(original)
-      .resize(200, 200, { fit: 'cover', position: 'centre' })
-      .jpeg({ quality: 60 })
-      .toBuffer()
-  } catch {
-    thumb = null
-  }
-
-  return {
-    key: {
-      remoteJid: m.chat,
-      fromMe: false,
-      id: 'FAKE_ID',
-      participant: FAKE_SENDER
-    },
-    message: {
-      productMessage: {
-        product: {
-          productImage: {
-            mimetype: "image/jpeg",
-            jpegThumbnail: thumb
-          },
-          title: groupName,
-          priceAmount1000: 1,
-          retailerId: "notify",
-          productImageCount: 1
-        },
-        businessOwnerJid: FAKE_SENDER
-      }
-    },
-    participant: FAKE_SENDER
-  }
-}
-
 const handler = async (m, { conn, args, getGroupMeta }) => {
   if (!getGroupMeta) return
 
@@ -97,7 +44,8 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
 
   const meta = await getGroupMeta()
   const mentionedJid = meta.participants.map(p => p.id)
-  const fquote = await getFakeQuote(m, conn)
+  
+  const fquote = await global.getFakeQuote(m, conn)
 
   if (!source && m.quoted) {
     const q = unwrap(m.quoted.message)
