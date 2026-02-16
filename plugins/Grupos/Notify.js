@@ -3,6 +3,8 @@ import {
   downloadContentFromMessage
 } from '@whiskeysockets/baileys'
 
+import sharp from 'sharp'
+
 function unwrap(m) {
   let n = m
   while (n) {
@@ -31,9 +33,16 @@ async function getFakeContact(m, conn) {
   try {
     const meta = await conn.groupMetadata(m.chat)
     groupName = meta.subject
+
     const pp = await conn.profilePictureUrl(m.chat, 'image')
     const res = await fetch(pp)
-    thumb = Buffer.from(await res.arrayBuffer())
+    const original = Buffer.from(await res.arrayBuffer())
+
+    thumb = await sharp(original)
+      .resize(200, 200, { fit: 'cover' })
+      .jpeg({ quality: 60 })
+      .toBuffer()
+
   } catch {
     thumb = null
   }
