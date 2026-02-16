@@ -52,36 +52,20 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
       } else {
         const qtext = q.conversation || q.extendedTextMessage?.text
         if (qtext) {
-          return conn.sendMessage(
-            m.chat,
-            {
-              text: qtext,
-              contextInfo: {
-                mentionedJid,
-                forwardingScore: 1,
-                isForwarded: true
-              }
-            },
-            { quoted: m }
-          )
+          return sendStyledMessage(conn, m, {
+            text: qtext,
+            mentionedJid
+          })
         }
       }
     }
   }
 
   if (!source && text) {
-    return conn.sendMessage(
-      m.chat,
-      {
-        text,
-        contextInfo: {
-          mentionedJid,
-          forwardingScore: 1,
-          isForwarded: true
-        }
-      },
-      { quoted: m }
-    )
+    return sendStyledMessage(conn, m, {
+      text,
+      mentionedJid
+    })
   }
 
   if (!source) {
@@ -112,14 +96,45 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
     }
   }
 
-  await conn.sendMessage(
+  return sendStyledMessage(conn, m, {
+    ...payload,
+    mentionedJid
+  })
+}
+
+/* ============================= */
+/*  BLOQUE ESTILO META AI       */
+/* ============================= */
+
+async function sendStyledMessage(conn, m, payload) {
+  const groupMeta = await conn.groupMetadata(m.chat)
+  const groupName = groupMeta.subject
+
+  let thumb = null
+  try {
+    const pp = await conn.profilePictureUrl(m.chat, 'image')
+    const res = await fetch(pp)
+    thumb = Buffer.from(await res.arrayBuffer())
+  } catch {
+    thumb = null
+  }
+
+  return conn.sendMessage(
     m.chat,
     {
       ...payload,
       contextInfo: {
-        mentionedJid,
+        mentionedJid: payload.mentionedJid || [],
         forwardingScore: 1,
-        isForwarded: true
+        isForwarded: true,
+        externalAdReply: {
+          title: groupName,
+          body: "Meta AI · Estado",
+          thumbnail: thumb,
+          mediaType: 1,
+          renderLargerThumbnail: false,
+          showAdAttribution: false
+        }
       }
     },
     { quoted: m }
