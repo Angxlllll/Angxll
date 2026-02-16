@@ -1,50 +1,43 @@
-import fetch from 'node-fetch';
-import axios from 'axios';
+"use strict"
 
-let handler = async (m, { conn, args, usedPrefix, command}) => {
-    await conn.sendMessage(m.chat, {
-    react: { text: '🗣️', key: m.key }
-  })
+import fs from "fs"
 
-  let txt = 'Pack🔥🔥🔥\n> Pon De Nuevo el comando .pack para mirar el siguiente';
-  let img = 'https://api.dorratz.com/nsfw/tetas';
+const makeFkontak = (img, title, botname) => ({
+  key: {
+    fromMe: false,
+    participant: "0@s.whatsapp.net"
+  },
+  message: {
+    productMessage: {
+      product: {
+        productImage: { jpegThumbnail: img },
+        title: title,
+        description: botname,
+        currencyCode: "USD",
+        priceAmount1000: "10000",
+        retailerId: "ANGEL-BOT"
+      },
+      businessOwnerJid: "0@s.whatsapp.net"
+    }
+  }
+})
 
-  const textRandom = [
-    "𝙀𝙩𝙞𝙦𝙪𝙚𝙩𝙖 𝙂𝙚𝙣𝙚𝙧𝙖𝙡",
-    "𝙈𝙚𝙣𝙘𝙞𝙤𝙣 𝙂𝙚𝙣𝙚𝙧𝙖𝙡",
-    "𝙀𝙩𝙞𝙦𝙪𝙚𝙩𝙖𝙣𝙙𝙤 𝙖 𝙡𝙤𝙨 𝙉𝙋𝘾"
-  ];
+let handler = async (m, { conn }) => {
 
-  const imgRandom = [
-    "https://iili.io/FKVDVAN.jpg",
-    "https://iili.io/FKVbUrJ.jpg"
-  ];
+  const img = fs.readFileSync("https://iili.io/FKVDVAN.jpg") // pon aquí tu imagen
+  const fkontak = makeFkontak(img, "Angel Bot", "Angel Bot")
 
-  const msjRandom = textRandom[Math.floor(Math.random() * textRandom.length)];
-  const imgSelected = imgRandom[Math.floor(Math.random() * imgRandom.length)];
-  const thumb = Buffer.from((await axios.get(imgSelected, { responseType: 'arraybuffer'})).data);
+  await conn.sendMessage(m.chat, {
+    text: "Hola 👋\nEste es Angel Bot en acción 🚀",
+    contextInfo: {
+      quotedMessage: fkontak.message
+    }
+  }, { quoted: m })
 
-  const izumi = {
-    key: { participants: "Hola", fromMe: false, id: "Halo"},
-    message: {
-      locationMessage: {
-        name: msjRandom,
-        jpegThumbnail: thumb,
-        vcard:
-          "BEGIN:VCARD\nVERSION:3.0\nN:;Unlimited;;;\nFN:Unlimited\nORG:Unlimited\nTITLE:\n" +
-          "item1.TEL;waid=19709001746:+1 (970) 900-1746\nitem1.X-ABLabel:Unlimited\n" +
-          "X-WA-BIZ-DESCRIPTION:ofc\nX-WA-BIZ-NAME:Unlimited\nEND:VCARD"
 }
-},
-    participant: "0@s.whatsapp.net Jola"
-};
 
-   await conn.sendMessage(m.chat, {
-    react: { text: '🗣️', key: m.key }
-  })
-  conn.sendMessage(m.chat, { image: { url: img}, caption: txt}, { quoted: izumi});
-};
+handler.help = ["hola"]
+handler.tags = ["main"]
+handler.command = ["hola"]
 
-handler.command = ['pack'];
-
-export default handler;
+export default handler
