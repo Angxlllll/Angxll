@@ -27,35 +27,38 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks)
 }
 
-async function getFakeQuote(m, conn) {
-  let thumb = null
-  let groupName = 'Grupo'
-
+async function getThumb(conn, jid) {
   try {
-    const meta = await conn.groupMetadata(m.chat)
-    groupName = meta.subject || groupName
-  } catch {}
-
-  try {
-    const pp = await conn.profilePictureUrl(m.chat, 'image')
+    const pp = await conn.profilePictureUrl(jid, 'image')
     const res = await fetch(pp)
     const original = Buffer.from(await res.arrayBuffer())
 
-    thumb = await sharp(original)
-      .resize(200, 200, {
-        fit: 'cover',
-        position: 'centre'
-      })
+    return await sharp(original)
+      .resize(200, 200, { fit: 'cover', position: 'centre' })
       .jpeg({ quality: 55 })
       .toBuffer()
   } catch {
-    thumb = null
+    const fallback = await fetch('https://i.imgur.com/6XZQW3p.jpeg')
+    return Buffer.from(await fallback.arrayBuffer())
   }
+}
+
+async function getFakeQuote(m, conn) {
+  let groupName = 'Chat'
+
+  try {
+    if (m.isGroup) {
+      const meta = await conn.groupMetadata(m.chat)
+      groupName = meta.subject || groupName
+    }
+  } catch {}
+
+  const thumb = await getThumb(conn, m.chat)
 
   return {
     key: {
       fromMe: false,
-      participant: m.chat,
+      participant: m.isGroup ? m.chat : m.sender,
       remoteJid: m.chat
     },
     message: {
@@ -68,7 +71,9 @@ async function getFakeQuote(m, conn) {
             thumbnail: thumb,
             mediaType: 1,
             renderLargerThumbnail: true,
-            showAdAttribution: false
+            showAdAttribution: false,
+            mediaUrl: 'https://whatsapp.com',
+            sourceUrl: 'https://whatsapp.com'
           }
         }
       }
@@ -77,8 +82,6 @@ async function getFakeQuote(m, conn) {
 }
 
 const handler = async (m, { conn, args, getGroupMeta }) => {
-  if (!getGroupMeta) return
-
   const text = args.length ? args.join(' ') : ''
   const root = unwrap(m.message)
 
@@ -92,8 +95,12 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
     }
   }
 
-  const meta = await getGroupMeta()
-  const mentionedJid = meta.participants.map(p => p.id)
+  let mentionedJid = []
+  if (m.isGroup && getGroupMeta) {
+    const meta = await getGroupMeta()
+    mentionedJid = meta.participants.map(p => p.id)
+  }
+
   const fquote = await getFakeQuote(m, conn)
 
   if (!source && m.quoted) {
@@ -107,10 +114,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
         if (qtext) {
           return conn.sendMessage(
             m.chat,
-            {
-              text: qtext,
-              contextInfo: { mentionedJid }
-            },
+            { text: qtext, contextInfo: { mentionedJid } },
             { quoted: fquote }
           )
         }
@@ -121,10 +125,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
   if (!source && text) {
     return conn.sendMessage(
       m.chat,
-      {
-        text,
-        contextInfo: { mentionedJid }
-      },
+      { text, contextInfo: { mentionedJid } },
       { quoted: fquote }
     )
   }
@@ -159,10 +160,7 @@ const handler = async (m, { conn, args, getGroupMeta }) => {
 
   await conn.sendMessage(
     m.chat,
-    {
-      ...payload,
-      contextInfo: { mentionedJid }
-    },
+    { ...payload, contextInfo: { mentionedJid } },
     { quoted: fquote }
   )
 }
