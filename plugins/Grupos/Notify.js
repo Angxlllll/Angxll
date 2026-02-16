@@ -53,7 +53,7 @@ async function getFakeQuote(m, conn) {
       remoteJid: m.chat,
       fromMe: false,
       id: '3EB0METAESTADO',
-      participant: '5212751073475@s.whatsapp.net'
+      participant: 'Nose'
     },
     message: {
       locationMessage: {
