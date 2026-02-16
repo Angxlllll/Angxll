@@ -100,12 +100,20 @@ const savetube = {
 
       const json = this.decrypt(info.data.data)
 
+      if (!json.audio_formats?.length)
+        return { status: false, error: 'No hay formatos de audio.' }
+
+      const format =
+        json.audio_formats.find(a => a.quality === 128) ||
+        json.audio_formats[0]
+
       const dlRes = await axios.post(
         `https://${cdn}/download`,
         {
           id: json.id,
           key: json.key,
-          downloadType: 'audio'
+          downloadType: 'audio',
+          quality: String(format.quality)
         },
         { headers: BASE_HEADERS }
       )
@@ -118,7 +126,10 @@ const savetube = {
         status: true,
         result: {
           title: json.title,
-          download: downloadUrl
+          duration: json.duration,
+          thumbnail: json.thumbnail,
+          download: downloadUrl,
+          quality: format.label
         }
       }
 
