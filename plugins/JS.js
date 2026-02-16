@@ -25,7 +25,7 @@ let handler = async (m, { conn, args, usedPrefix, command}) => {
   const thumb = Buffer.from((await axios.get(imgSelected, { responseType: 'arraybuffer'})).data);
 
   const izumi = {
-    key: { participants: "0@s.whatsapp.net", fromMe: false, id: "Halo"},
+    key: { participants: "Hola", fromMe: false, id: "Halo"},
     message: {
       locationMessage: {
         name: msjRandom,
@@ -36,7 +36,7 @@ let handler = async (m, { conn, args, usedPrefix, command}) => {
           "X-WA-BIZ-DESCRIPTION:ofc\nX-WA-BIZ-NAME:Unlimited\nEND:VCARD"
 }
 },
-    participant: "0@s.whatsaapp.net"
+    participant: "0@s.whatsapp.net"
 };
 
    await conn.sendMessage(m.chat, {
