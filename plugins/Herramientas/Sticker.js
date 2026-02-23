@@ -83,7 +83,9 @@ const handler = async (msg, { conn, wa }) => {
     )
 
     await conn.sendMessage(chatId, { react: { text: "✅", key: msg.key } })
-  } catch {
+
+  } catch (e) {
+    console.error(e)
     await conn.sendMessage(
       chatId,
       { text: "❌ Hubo un error al crear el sticker." },
@@ -99,20 +101,20 @@ handler.command = ['s', 'sticker']
 export default handler
 
 async function imageToWebp(media) {
-  return convertToWebp(media, false)
+  return convertToWebp(media, "image2pipe", false)
 }
 
 async function videoToWebp(media) {
-  return convertToWebp(media, true)
+  return convertToWebp(media, "mp4", true)
 }
 
-async function convertToWebp(buffer, isVideo) {
+async function convertToWebp(buffer, inputFormat, isVideo) {
   return new Promise((resolve, reject) => {
     const inputStream = Readable.from(buffer)
     const chunks = []
 
     const command = ffmpeg(inputStream)
-      .inputFormat(isVideo ? "mp4" : "jpg")
+      .inputFormat(inputFormat)
       .addOutputOptions([
         "-vcodec", "libwebp",
         "-vf",
@@ -130,8 +132,10 @@ async function convertToWebp(buffer, isVideo) {
       ])
     }
 
-    const stream = command.pipe()
-    stream.on("data", chunk => chunks.push(chunk))
+    const output = command.pipe()
+
+    output.on("data", chunk => chunks.push(chunk))
+    output.on("error", reject)
   })
 }
 
@@ -149,7 +153,7 @@ async function addExif(webpBuffer, metadata) {
     0x00,0x00,0x16,0x00,0x00,0x00
   ])
 
-  const jsonBuff = Buffer.from(JSON.stringify(json), "utf-8")
+  const jsonBuff = Buffer.from(JSON.stringify(json))
   const exif = Buffer.concat([exifAttr, jsonBuff])
   exif.writeUIntLE(jsonBuff.length, 14, 4)
 
@@ -157,5 +161,6 @@ async function addExif(webpBuffer, metadata) {
   await img.load(webpBuffer)
   img.exif = exif
 
-  return await img.save(null)
+  const result = await img.save(null)
+  return Buffer.isBuffer(result) ? result : webpBuffer
 }
