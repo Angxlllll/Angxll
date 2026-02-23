@@ -109,13 +109,19 @@ async function convertToWebp(buffer, isVideo) {
     const chunks = []
 
     const command = ffmpeg(inputStream)
-      .inputFormat(isVideo ? "mp4" : "image2pipe")
+
+    if (!isVideo) {
+      command.inputFormat("image2pipe")
+    }
+
+    command
       .addOutputOptions([
         "-vcodec", "libwebp",
         "-vf",
         "scale=320:320:force_original_aspect_ratio=increase,crop=320:320",
-        "-lossless", "1",
-        "-qscale", "75"
+        "-loop", "0",
+        "-preset", "default",
+        "-an"
       ])
       .format("webp")
       .on("error", reject)
@@ -123,13 +129,12 @@ async function convertToWebp(buffer, isVideo) {
 
     if (isVideo) {
       command.addOutputOptions([
-        "-loop", "0",
-        "-t", "00:00:05",
-        "-an"
+        "-t", "00:00:05"
       ])
     }
 
     const output = command.pipe()
+
     output.on("data", chunk => chunks.push(chunk))
     output.on("error", reject)
   })
