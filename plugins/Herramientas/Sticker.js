@@ -1,7 +1,10 @@
 import Crypto from "crypto"
 import ffmpeg from "fluent-ffmpeg"
+import ffmpegPath from "@ffmpeg-installer/ffmpeg"
 import webp from "node-webpmux"
 import { Readable } from "stream"
+
+ffmpeg.setFfmpegPath(ffmpegPath.path)
 
 function unwrapMessage(m) {
   let n = m
@@ -71,8 +74,8 @@ const handler = async (msg, { conn, wa }) => {
 
     const webpBuffer =
       mediaType === "image"
-        ? await imageToWebp(buffer)
-        : await videoToWebp(buffer)
+        ? await convertToWebp(buffer, false)
+        : await convertToWebp(buffer, true)
 
     const stickerBuffer = await addExif(webpBuffer, metadata)
 
@@ -100,21 +103,13 @@ handler.tags = ["stickers"]
 handler.command = ['s', 'sticker']
 export default handler
 
-async function imageToWebp(media) {
-  return convertToWebp(media, "image2pipe", false)
-}
-
-async function videoToWebp(media) {
-  return convertToWebp(media, "mp4", true)
-}
-
-async function convertToWebp(buffer, inputFormat, isVideo) {
+async function convertToWebp(buffer, isVideo) {
   return new Promise((resolve, reject) => {
     const inputStream = Readable.from(buffer)
     const chunks = []
 
     const command = ffmpeg(inputStream)
-      .inputFormat(inputFormat)
+      .inputFormat(isVideo ? "mp4" : "image2pipe")
       .addOutputOptions([
         "-vcodec", "libwebp",
         "-vf",
