@@ -1,7 +1,10 @@
 import Crypto from "crypto"
 import ffmpeg from "fluent-ffmpeg"
+import ffmpegPath from "@ffmpeg-installer/ffmpeg"
 import webp from "node-webpmux"
 import { Readable } from "stream"
+
+ffmpeg.setFfmpegPath(ffmpegPath.path)
 
 function unwrapMessage(m) {
   let n = m
@@ -71,8 +74,8 @@ const handler = async (msg, { conn, wa }) => {
 
     const webpBuffer =
       mediaType === "image"
-        ? await imageToWebp(buffer)
-        : await videoToWebp(buffer)
+        ? await convertToWebp(buffer, false)
+        : await convertToWebp(buffer, true)
 
     const stickerBuffer = await addExif(webpBuffer, metadata)
 
@@ -83,7 +86,9 @@ const handler = async (msg, { conn, wa }) => {
     )
 
     await conn.sendMessage(chatId, { react: { text: "✅", key: msg.key } })
-  } catch {
+
+  } catch (e) {
+    console.error(e)
     await conn.sendMessage(
       chatId,
       { text: "❌ Hubo un error al crear el sticker." },
@@ -98,14 +103,6 @@ handler.tags = ["stickers"]
 handler.command = ['s', 'sticker']
 export default handler
 
-async function imageToWebp(media) {
-  return convertToWebp(media, false)
-}
-
-async function videoToWebp(media) {
-  return convertToWebp(media, true)
-}
-
 async function convertToWebp(buffer, isVideo) {
   return new Promise((resolve, reject) => {
     const inputStream = Readable.from(buffer)
@@ -116,7 +113,9 @@ async function convertToWebp(buffer, isVideo) {
       .addOutputOptions([
         "-vcodec", "libwebp",
         "-vf",
-        "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:color=white@0.0,fps=15"
+        "scale=320:320:force_original_aspect_ratio=increase,crop=320:320",
+        "-lossless", "1",
+        "-qscale", "75"
       ])
       .format("webp")
       .on("error", reject)
@@ -131,7 +130,6 @@ async function convertToWebp(buffer, isVideo) {
     }
 
     const output = command.pipe()
-
     output.on("data", chunk => chunks.push(chunk))
     output.on("error", reject)
   })
@@ -151,7 +149,7 @@ async function addExif(webpBuffer, metadata) {
     0x00,0x00,0x16,0x00,0x00,0x00
   ])
 
-  const jsonBuff = Buffer.from(JSON.stringify(json), "utf-8")
+  const jsonBuff = Buffer.from(JSON.stringify(json))
   const exif = Buffer.concat([exifAttr, jsonBuff])
   exif.writeUIntLE(jsonBuff.length, 14, 4)
 
@@ -159,5 +157,6 @@ async function addExif(webpBuffer, metadata) {
   await img.load(webpBuffer)
   img.exif = exif
 
-  return await img.save(null)
+  const result = await img.save(null)
+  return Buffer.isBuffer(result) ? result : webpBuffer
 }
