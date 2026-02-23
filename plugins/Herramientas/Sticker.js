@@ -113,7 +113,7 @@ async function convertToWebp(buffer, isVideo) {
       .addOutputOptions([
         "-vcodec", "libwebp",
         "-vf",
-        "scale='min(320,iw)':min(320,ih):force_original_aspect_ratio=decrease,fps=15,pad=320:320:-1:-1:color=white@0.0"
+        "scale=320:320:force_original_aspect_ratio=decrease,pad=320:320:(ow-iw)/2:(oh-ih)/2:color=white@0.0,fps=15"
       ])
       .format("webp")
       .on("error", reject)
