@@ -69,7 +69,8 @@ let handler = async (m, { conn }) => {
         '⭒ ִֶָ७ ꯭🛠️˙⋆｡ - *𝖱𝖾𝖾𝗇𝗏𝗂𝖺𝗋*\n' +
         '⭒ ִֶָ७ ꯭🛠️˙⋆｡ - *𝖠𝖻𝗋𝗂𝗋*\n' +
         '⭒ ִֶָ७ ꯭🛠️˙⋆｡ - *𝖪𝗂𝖼𝗄*\n' +
-        '⭒ ִֶָ७ ꯭🛠️˙⋆｡ - *𝖶𝗁𝖺𝗍𝗆𝗎𝗌𝗂𝖼*',
+        '⭒ ִֶָ७ ꯭🛠️˙⋆｡ - *𝖶𝗁𝖺𝗍𝗆𝗎𝗌𝗂𝖼*\n' +
+        '⭒ ִֶָ७ ꯭🛠️˙⋆｡ - *𝖶𝗆*',
       image: 'https://cdn.russellxz.click/b1af0aef.jpeg',
       buttons: [
         { name: 'Soporte', url: 'https://wa.me/5210000000000' }
