@@ -12,7 +12,7 @@ import { fileURLToPath } from "url"
 import store from "./lib/store.js"
 
 import {
-  makeWASocket,
+  default as makeWASocket,
   DisconnectReason,
   useMultiFileAuthState,
   makeCacheableSignalKeyStore
@@ -83,20 +83,25 @@ const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
 
 async function startSock() {
   const sock = makeWASocket({
-  logger: pino({ level: "silent" }),
-  printQRInTerminal: option === "1",
-  browser: ["Ubuntu", "Chrome", "120"],
-  auth: state,
-  version: [2, 2412, 54],
-  syncFullHistory: false,
-  markOnlineOnConnect: false,
-  emitOwnEvents: false,
-  generateHighQualityLinkPreview: false,
-  msgRetryCounterCache,
-  userDevicesCache,
-  keepAliveIntervalMs: 55000,
-  getMessage: async () => undefined
-})
+    logger: pino({ level: "silent" }),
+    printQRInTerminal: option === "1",
+    browser: ["Ubuntu", "Chrome", "120"],
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(
+        state.keys,
+        pino({ level: "fatal" })
+      )
+    },
+    syncFullHistory: false,
+    markOnlineOnConnect: false,
+    emitOwnEvents: false,
+    generateHighQualityLinkPreview: false,
+    msgRetryCounterCache,
+    userDevicesCache,
+    keepAliveIntervalMs: 55000,
+    getMessage: async () => undefined
+  })
 
   global.conn = sock
   store.bind(sock)
@@ -128,17 +133,14 @@ async function startSock() {
       pairingRequested = true
       console.log(chalk.cyanBright("\nIngresa tu número con código país"))
       phoneNumber = await question("--> ")
-
       const code = await sock.requestPairingCode(
         phoneNumber.replace(/\D/g, "")
       )
-
       console.log(chalk.greenBright("\nCódigo de vinculación:\n"))
       console.log(chalk.bold(code.match(/.{1,4}/g).join(" ")))
     }
 
     if (connection === "open") {
-
       console.log(chalk.greenBright("✿ Conectado"))
 
       const file = "./lastRestarter.json"
