@@ -83,19 +83,20 @@ const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
 
 async function startSock() {
   const sock = makeWASocket({
-    logger: pino({ level: "silent" }),
-    printQRInTerminal: option === "1",
-    browser: ["Android", "Chrome", "120"],
-    auth: state,
-    syncFullHistory: false,
-    markOnlineOnConnect: false,
-    emitOwnEvents: false,
-    generateHighQualityLinkPreview: false,
-    msgRetryCounterCache,
-    userDevicesCache,
-    keepAliveIntervalMs: 55000,
-    getMessage: async () => undefined
-  })
+  logger: pino({ level: "silent" }),
+  printQRInTerminal: option === "1",
+  browser: ["Ubuntu", "Chrome", "120"],
+  auth: state,
+  version: [2, 2412, 54],
+  syncFullHistory: false,
+  markOnlineOnConnect: false,
+  emitOwnEvents: false,
+  generateHighQualityLinkPreview: false,
+  msgRetryCounterCache,
+  userDevicesCache,
+  keepAliveIntervalMs: 55000,
+  getMessage: async () => undefined
+})
 
   global.conn = sock
   store.bind(sock)
