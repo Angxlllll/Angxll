@@ -220,7 +220,7 @@ async function startSock() {
       if (reason === DisconnectReason.loggedOut)
         process.exit(0)
 
-      setTimeout(startSock, 2000)
+      setTimeout(startSock, 5000)
     }
 
   })
