@@ -14,9 +14,8 @@ import store from "./lib/store.js"
 import {
   makeWASocket,
   DisconnectReason,
-  useMultiFileAuthState,
-  makeCacheableSignalKeyStore
-} from "@whiskeysockets/baileys"
+  useMultiFileAuthState
+} from "baileys"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -86,13 +85,7 @@ async function startSock() {
     logger: pino({ level: "silent" }),
     printQRInTerminal: option === "1",
     browser: ["Android", "Chrome", "120"],
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(
-        state.keys,
-        pino({ level: "fatal" })
-      )
-    },
+    auth: state,
     syncFullHistory: false,
     markOnlineOnConnect: false,
     emitOwnEvents: false,
@@ -128,14 +121,16 @@ async function startSock() {
       option === "2" &&
       !pairingRequested &&
       !fs.existsSync(`./${SESSION_DIR}/creds.json`) &&
-      (connection === "connecting" || connection === "open")
+      connection === "connecting"
     ) {
       pairingRequested = true
       console.log(chalk.cyanBright("\nIngresa tu número con código país"))
       phoneNumber = await question("--> ")
+
       const code = await sock.requestPairingCode(
         phoneNumber.replace(/\D/g, "")
       )
+
       console.log(chalk.greenBright("\nCódigo de vinculación:\n"))
       console.log(chalk.bold(code.match(/.{1,4}/g).join(" ")))
     }
