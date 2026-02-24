@@ -14,8 +14,9 @@ import store from "./lib/store.js"
 import {
   makeWASocket,
   DisconnectReason,
-  useMultiFileAuthState
-} from "baileys"
+  useMultiFileAuthState,
+  makeCacheableSignalKeyStore
+} from "@whiskeysockets/baileys"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
