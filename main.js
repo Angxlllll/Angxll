@@ -4,6 +4,7 @@ import "./config.js"
 import fs from "fs"
 import path from "path"
 import readline from "readline"
+import readlineSync from "readline-sync"
 import chalk from "chalk"
 import pino from "pino"
 import NodeCache from "node-cache"
@@ -15,7 +16,9 @@ import {
   makeWASocket,
   DisconnectReason,
   useMultiFileAuthState,
-  makeCacheableSignalKeyStore
+  makeCacheableSignalKeyStore,
+  fetchLatestBaileysVersion,
+  Browsers
 } from "@whiskeysockets/baileys"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -23,7 +26,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 global.plugins = Object.create(null)
 global.COMMAND_MAP = new Map()
 
-const SESSION_DIR = global.sessions || "sessions"
+const SESSION_DIR = global.sessions || "./Sessions/Owner"
+
+try {
+  fs.mkdirSync(SESSION_DIR, { recursive: true })
+} catch {}
 
 const msgRetryCounterCache = new NodeCache({ stdTTL: 30 })
 const userDevicesCache = new NodeCache({ stdTTL: 120 })
@@ -35,28 +42,50 @@ const rl = readline.createInterface({
 
 const question = q => new Promise(r => rl.question(q, r))
 
-let option = process.argv.includes("qr") ? "1" : null
-let phoneNumber = global.botNumber
+const methodCodeQR = process.argv.includes("--qr")
+const methodCode = process.argv.includes("--code")
 
-if (
-  !option &&
-  !phoneNumber &&
-  !fs.existsSync(`./${SESSION_DIR}/creds.json`)
-) {
-  do {
-    option = await question(
-      chalk.bold.white("Seleccione una opción:\n") +
-        chalk.blue("1. Código QR\n") +
-        chalk.cyan("2. Código de texto\n--> ")
+const DIGITS = s => String(s).replace(/\D/g, "")
+
+function normalizePhone(input) {
+  let s = DIGITS(input)
+  if (!s) return ""
+  if (s.startsWith("0")) s = s.replace(/^0+/, "")
+  if (s.startsWith("52") && !s.startsWith("521") && s.length >= 12)
+    s = "521" + s.slice(2)
+  if (s.startsWith("54") && !s.startsWith("549") && s.length >= 11)
+    s = "549" + s.slice(2)
+  return s
+}
+
+let option = ""
+let phoneNumber = ""
+
+if (methodCodeQR) option = "1"
+else if (methodCode) option = "2"
+else if (!fs.existsSync(`${SESSION_DIR}/creds.json`)) {
+  option = readlineSync.question(
+    chalk.bold.white("\nSeleccione una opción:\n") +
+      chalk.blueBright("1. Código QR\n") +
+      chalk.cyan("2. Código de texto\n--> ")
+  )
+
+  while (!/^[12]$/.test(option)) {
+    option = readlineSync.question("--> ")
+  }
+
+  if (option === "2") {
+    const phoneInput = readlineSync.question(
+      chalk.cyanBright("\nIngresa tu número con código país:\n--> ")
     )
-  } while (!/^[12]$/.test(option))
+    phoneNumber = normalizePhone(phoneInput)
+  }
 }
 
 const pluginRoot = path.join(__dirname, "plugins")
 
 function rebuildPluginIndex() {
   global.COMMAND_MAP.clear()
-
   for (const plugin of Object.values(global.plugins)) {
     if (!plugin || plugin.disabled) continue
     let cmds = plugin.command
@@ -83,36 +112,45 @@ async function loadPlugins(dir) {
 
 const handler = await import("./handler.js")
 
-const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
-
 async function startSock() {
+  const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
+  const { version } = await fetchLatestBaileysVersion()
+  const logger = pino({ level: "silent" })
+
   const sock = makeWASocket({
-    logger: pino({ level: "silent" }),
-    printQRInTerminal: option === "1",
-    browser: ["Android", "Chrome", "120"],
+    version,
+    logger,
+    printQRInTerminal: false,
+    browser: Browsers.macOS("Chrome"),
     auth: {
       creds: state.creds,
-      keys: makeCacheableSignalKeyStore(
-        state.keys,
-        pino({ level: "fatal" })
-      )
+      keys: makeCacheableSignalKeyStore(state.keys, logger)
     },
     syncFullHistory: false,
     markOnlineOnConnect: false,
     emitOwnEvents: false,
-    generateHighQualityLinkPreview: false,
+    generateHighQualityLinkPreview: true,
     msgRetryCounterCache,
     userDevicesCache,
-    keepAliveIntervalMs: 55000,
-    getMessage: async () => undefined
+    keepAliveIntervalMs: 45000,
+    getMessage: async () => ""
   })
 
   global.conn = sock
   store.bind(sock)
 
-  let pairingRequested = false
-
   sock.ev.on("creds.update", saveCreds)
+
+  if (option === "2" && !fs.existsSync(`${SESSION_DIR}/creds.json`)) {
+    setTimeout(async () => {
+      if (!state.creds.registered) {
+        const pairing = await sock.requestPairingCode(phoneNumber)
+        const code = pairing?.match(/.{1,4}/g)?.join("-") || pairing
+        console.log("\nCódigo de emparejamiento:\n")
+        console.log(code)
+      }
+    }, 3000)
+  }
 
   sock.ev.on("messages.upsert", ({ messages, type }) => {
     if (type !== "notify") return
@@ -125,23 +163,12 @@ async function startSock() {
   })
 
   sock.ev.on("connection.update", async update => {
-    const { connection, lastDisconnect } = update
+    const { qr, connection, lastDisconnect } = update
     const reason = lastDisconnect?.error?.output?.statusCode
 
-    if (
-      option === "2" &&
-      !pairingRequested &&
-      !fs.existsSync(`./${SESSION_DIR}/creds.json`) &&
-      (connection === "connecting" || connection === "open")
-    ) {
-      pairingRequested = true
-      console.log(chalk.cyanBright("\nIngresa tu número con código país"))
-      phoneNumber = await question("--> ")
-      const code = await sock.requestPairingCode(
-        phoneNumber.replace(/\D/g, "")
-      )
-      console.log(chalk.greenBright("\nCódigo de vinculación:\n"))
-      console.log(chalk.bold(code.match(/.{1,4}/g).join(" ")))
+    if (qr && option === "1") {
+      console.log("\nEscanea el código QR:\n")
+      require("qrcode-terminal").generate(qr, { small: true })
     }
 
     if (connection === "open") {
