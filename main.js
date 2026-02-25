@@ -46,8 +46,8 @@ if (
   do {
     option = await question(
       chalk.bold.white("Seleccione una opción:\n") +
-      chalk.blue("1. Código QR\n") +
-      chalk.cyan("2. Código de texto\n--> ")
+        chalk.blue("1. Código QR\n") +
+        chalk.cyan("2. Código de texto\n--> ")
     )
   } while (!/^[12]$/.test(option))
 }
@@ -59,16 +59,11 @@ function rebuildPluginIndex() {
 
   for (const plugin of Object.values(global.plugins)) {
     if (!plugin || plugin.disabled) continue
-
     let cmds = plugin.command
     if (!cmds) continue
-
     if (!Array.isArray(cmds)) cmds = [cmds]
-
     for (const c of cmds) {
-      if (typeof c === "string") {
-        global.COMMAND_MAP.set(c.toLowerCase(), plugin)
-      }
+      global.COMMAND_MAP.set(c.toLowerCase(), plugin)
     }
   }
 }
@@ -76,7 +71,6 @@ function rebuildPluginIndex() {
 async function loadPlugins(dir) {
   for (const f of fs.readdirSync(dir)) {
     const full = path.join(dir, f)
-
     if (fs.statSync(full).isDirectory()) {
       await loadPlugins(full)
     } else if (f.endsWith(".js")) {
@@ -84,24 +78,18 @@ async function loadPlugins(dir) {
       global.plugins[full] = m.default || m
     }
   }
-
   rebuildPluginIndex()
 }
 
 const handler = await import("./handler.js")
 
-const { state, saveCreds } =
-  await useMultiFileAuthState(SESSION_DIR)
+const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
 
 async function startSock() {
-
   const sock = makeWASocket({
     logger: pino({ level: "silent" }),
-
     printQRInTerminal: option === "1",
-
     browser: ["Android", "Chrome", "120"],
-
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(
@@ -109,17 +97,13 @@ async function startSock() {
         pino({ level: "fatal" })
       )
     },
-
     syncFullHistory: false,
     markOnlineOnConnect: false,
     emitOwnEvents: false,
     generateHighQualityLinkPreview: false,
-
     msgRetryCounterCache,
     userDevicesCache,
-
     keepAliveIntervalMs: 55000,
-
     getMessage: async () => undefined
   })
 
@@ -131,23 +115,18 @@ async function startSock() {
   sock.ev.on("creds.update", saveCreds)
 
   sock.ev.on("messages.upsert", ({ messages, type }) => {
-
     if (type !== "notify") return
     if (!messages?.length) return
-
     try {
       handler.handler.call(sock, { messages })
     } catch (e) {
       console.error(e)
     }
-
   })
 
   sock.ev.on("connection.update", async update => {
-
     const { connection, lastDisconnect } = update
-    const reason =
-      lastDisconnect?.error?.output?.statusCode
+    const reason = lastDisconnect?.error?.output?.statusCode
 
     if (
       option === "2" &&
@@ -156,47 +135,22 @@ async function startSock() {
       (connection === "connecting" || connection === "open")
     ) {
       pairingRequested = true
-
-      console.log(
-        chalk.cyanBright(
-          "\nIngresa tu número con código país"
-        )
-      )
-
+      console.log(chalk.cyanBright("\nIngresa tu número con código país"))
       phoneNumber = await question("--> ")
-
-      const code =
-        await sock.requestPairingCode(
-          phoneNumber.replace(/\D/g, "")
-        )
-
-      console.log(
-        chalk.greenBright(
-          "\nCódigo de vinculación:\n"
-        )
+      const code = await sock.requestPairingCode(
+        phoneNumber.replace(/\D/g, "")
       )
-
-      console.log(
-        chalk.bold(
-          code.match(/.{1,4}/g).join(" ")
-        )
-      )
+      console.log(chalk.greenBright("\nCódigo de vinculación:\n"))
+      console.log(chalk.bold(code.match(/.{1,4}/g).join(" ")))
     }
 
     if (connection === "open") {
-
-      console.log(
-        chalk.greenBright("✿ Conectado")
-      )
+      console.log(chalk.greenBright("✿ Conectado"))
 
       const file = "./lastRestarter.json"
-
       if (fs.existsSync(file)) {
         try {
-          const data = JSON.parse(
-            fs.readFileSync(file, "utf-8")
-          )
-
+          const data = JSON.parse(fs.readFileSync(file, "utf-8"))
           if (data?.chatId && data?.key) {
             await sock.sendMessage(
               data.chatId,
@@ -206,9 +160,7 @@ async function startSock() {
               }
             )
           }
-
           fs.unlinkSync(file)
-
         } catch (e) {
           console.error(e)
         }
@@ -216,13 +168,9 @@ async function startSock() {
     }
 
     if (connection === "close") {
-
-      if (reason === DisconnectReason.loggedOut)
-        process.exit(0)
-
-      setTimeout(startSock, 5000)
+      if (reason === DisconnectReason.loggedOut) process.exit(0)
+      setTimeout(startSock, 2000)
     }
-
   })
 }
 
