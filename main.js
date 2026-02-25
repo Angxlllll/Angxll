@@ -129,7 +129,7 @@ async function startSock() {
     syncFullHistory: false,
     markOnlineOnConnect: false,
     emitOwnEvents: false,
-    generateHighQualityLinkPreview: true,
+    generateHighQualityLinkPreview: false,
     msgRetryCounterCache,
     userDevicesCache,
     keepAliveIntervalMs: 45000,
