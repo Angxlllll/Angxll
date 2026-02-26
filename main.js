@@ -9,6 +9,7 @@ import chalk from "chalk"
 import pino from "pino"
 import NodeCache from "node-cache"
 import { fileURLToPath } from "url"
+import qrcode from "qrcode-terminal"
 
 import store from "./lib/store.js"
 
@@ -24,7 +25,8 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 global.plugins = Object.create(null)
-global.COMMAND_MAP = new Map()
+global.PLUGIN_BY_COMMAND = new Map()
+global.ALL_PLUGINS = []
 
 const SESSION_DIR = global.sessions || "./Sessions/Owner"
 
@@ -32,18 +34,8 @@ try {
   fs.mkdirSync(SESSION_DIR, { recursive: true })
 } catch {}
 
-const msgRetryCounterCache = new NodeCache({ stdTTL: 30 })
-const userDevicesCache = new NodeCache({ stdTTL: 120 })
-
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-})
-
-const question = q => new Promise(r => rl.question(q, r))
-
-const methodCodeQR = process.argv.includes("--qr")
-const methodCode = process.argv.includes("--code")
+const msgRetryCounterCache = new NodeCache({ stdTTL: 30, checkperiod: 60 })
+const userDevicesCache = new NodeCache({ stdTTL: 120, checkperiod: 120 })
 
 const DIGITS = s => String(s).replace(/\D/g, "")
 
@@ -60,6 +52,9 @@ function normalizePhone(input) {
 
 let option = ""
 let phoneNumber = ""
+
+const methodCodeQR = process.argv.includes("--qr")
+const methodCode = process.argv.includes("--code")
 
 if (methodCodeQR) option = "1"
 else if (methodCode) option = "2"
@@ -82,17 +77,21 @@ else if (!fs.existsSync(`${SESSION_DIR}/creds.json`)) {
   }
 }
 
-const pluginRoot = path.join(__dirname, "plugins")
-
 function rebuildPluginIndex() {
-  global.COMMAND_MAP.clear()
+  global.PLUGIN_BY_COMMAND.clear()
+  global.ALL_PLUGINS = []
+
   for (const plugin of Object.values(global.plugins)) {
     if (!plugin || plugin.disabled) continue
+
+    global.ALL_PLUGINS.push(plugin)
+
     let cmds = plugin.command
     if (!cmds) continue
     if (!Array.isArray(cmds)) cmds = [cmds]
-    for (const c of cmds) {
-      global.COMMAND_MAP.set(c.toLowerCase(), plugin)
+
+    for (const cmd of cmds) {
+      global.PLUGIN_BY_COMMAND.set(cmd.toLowerCase(), plugin)
     }
   }
 }
@@ -103,7 +102,7 @@ async function loadPlugins(dir) {
     if (fs.statSync(full).isDirectory()) {
       await loadPlugins(full)
     } else if (f.endsWith(".js")) {
-      const m = await import(full)
+      const m = await import(full + "?update=" + Date.now())
       global.plugins[full] = m.default || m
     }
   }
@@ -133,6 +132,7 @@ async function startSock() {
     msgRetryCounterCache,
     userDevicesCache,
     keepAliveIntervalMs: 45000,
+    defaultQueryTimeoutMs: 60000,
     getMessage: async () => ""
   })
 
@@ -152,14 +152,47 @@ async function startSock() {
     }, 3000)
   }
 
+  const messageQueue = []
+  let processing = false
+
+  async function processQueue() {
+    if (processing) return
+    processing = true
+
+    while (messageQueue.length) {
+      const job = messageQueue.shift()
+      try {
+        await handler.handler.call(sock, job)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    processing = false
+  }
+
   sock.ev.on("messages.upsert", ({ messages, type }) => {
     if (type !== "notify") return
     if (!messages?.length) return
-    try {
-      handler.handler.call(sock, { messages })
-    } catch (e) {
-      console.error(e)
-    }
+
+    const m = messages[0]
+    if (!m.message) return
+    if (m.key?.remoteJid === "status@broadcast") return
+
+    const text =
+      m.message.conversation ||
+      m.message.extendedTextMessage?.text ||
+      m.message.imageMessage?.caption ||
+      m.message.videoMessage?.caption ||
+      ""
+
+    if (!text) return
+
+    const prefix = global.prefix || "."
+    if (!text.startsWith(prefix)) return
+
+    messageQueue.push({ messages: [m] })
+    processQueue()
   })
 
   sock.ev.on("connection.update", async update => {
@@ -168,7 +201,7 @@ async function startSock() {
 
     if (qr && option === "1") {
       console.log("\nEscanea el código QR:\n")
-      require("qrcode-terminal").generate(qr, { small: true })
+      qrcode.generate(qr, { small: true })
     }
 
     if (connection === "open") {
@@ -182,15 +215,13 @@ async function startSock() {
             await sock.sendMessage(
               data.chatId,
               {
-                text: `✅ *${global.namebot} está en línea nuevamente* 🚀`,
+                text: `✅ ${global.namebot} está en línea nuevamente 🚀`,
                 edit: data.key
               }
             )
           }
           fs.unlinkSync(file)
-        } catch (e) {
-          console.error(e)
-        }
+        } catch {}
       }
     }
 
@@ -201,7 +232,7 @@ async function startSock() {
   })
 }
 
-await loadPlugins(pluginRoot)
+await loadPlugins(path.join(__dirname, "plugins"))
 await startSock()
 
 process.on("uncaughtException", console.error)
