@@ -6,6 +6,7 @@ const DIGITS = s => String(s || "").replace(/\D/g, "")
 
 const GROUP_TTL = 60000
 const MAX_GROUP_CACHE = 500
+const PLUGIN_TIMEOUT = 8000
 
 const adminCache = new Map()
 const chatQueues = new Map()
@@ -62,6 +63,15 @@ async function getGroupAdmins(conn, chatId) {
   adminCache.set(chatId, { v: admins, t: Date.now() })
 
   return admins
+}
+
+function runWithTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout")), ms)
+    )
+  ])
 }
 
 const FAIL = {
@@ -158,17 +168,26 @@ async function process(raw) {
   const exec = plugin.exec || plugin.default || plugin
   if (!exec) return
 
-  await exec.call(this, m, {
-    conn: this,
-    args,
-    command,
-    usedPrefix: m.text[0],
-    isROwner,
-    isOwner,
-    isAdmin,
-    isBotAdmin,
-    getGroupMeta: plugin.needsMeta && isGroup
-      ? async () => await this.groupMetadata(m.chat)
-      : null
-  })
+  await runWithTimeout(
+    exec.call(this, m, {
+      conn: this,
+      args,
+      command,
+      usedPrefix: m.text[0],
+      isROwner,
+      isOwner,
+      isAdmin,
+      isBotAdmin,
+      getGroupMeta: plugin.needsMeta && isGroup
+        ? async () => await this.groupMetadata(m.chat)
+        : null
+    }),
+    PLUGIN_TIMEOUT
+  )
 }
+
+setInterval(() => {
+  for (const chatId of adminCache.keys()) {
+    getGroupAdmins(global.conn, chatId).catch(() => {})
+  }
+}, 55000)
