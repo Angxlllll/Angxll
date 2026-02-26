@@ -6,34 +6,37 @@ const DIGITS = s => String(s || "").replace(/\D/g, "")
 
 const GROUP_TTL = 60000
 const MAX_GROUP_CACHE = 500
-const MAX_CONCURRENT = 5
 
 const adminCache = new Map()
+const chatQueues = new Map()
+const processingChats = new Set()
 
-let activeProcesses = 0
-const queue = []
+function schedule(chatId, job) {
+  if (!chatQueues.has(chatId)) {
+    chatQueues.set(chatId, [])
+  }
 
-function runNext() {
-  if (activeProcesses >= MAX_CONCURRENT) return
-  const job = queue.shift()
-  if (!job) return
-  activeProcesses++
-  job()
+  chatQueues.get(chatId).push(job)
+
+  if (!processingChats.has(chatId)) {
+    processChat(chatId)
+  }
 }
 
-function enqueue(fn) {
-  return new Promise(resolve => {
-    queue.push(async () => {
-      try {
-        const r = await fn()
-        resolve(r)
-      } finally {
-        activeProcesses--
-        runNext()
-      }
-    })
-    runNext()
-  })
+async function processChat(chatId) {
+  processingChats.add(chatId)
+
+  const queue = chatQueues.get(chatId)
+
+  while (queue && queue.length) {
+    const job = queue.shift()
+    try {
+      await job()
+    } catch {}
+  }
+
+  processingChats.delete(chatId)
+  chatQueues.delete(chatId)
 }
 
 async function getGroupAdmins(conn, chatId) {
@@ -46,7 +49,6 @@ async function getGroupAdmins(conn, chatId) {
   const participants = Array.isArray(meta?.participants) ? meta.participants : []
 
   const admins = new Set()
-
   for (const p of participants) {
     if (p?.admin) {
       admins.add(DIGITS(p.id || p.jid))
@@ -57,10 +59,7 @@ async function getGroupAdmins(conn, chatId) {
     adminCache.clear()
   }
 
-  adminCache.set(chatId, {
-    v: admins,
-    t: Date.now()
-  })
+  adminCache.set(chatId, { v: admins, t: Date.now() })
 
   return admins
 }
@@ -86,23 +85,23 @@ export async function handler(update) {
   if (!msgs) return
 
   for (const raw of msgs) {
-    enqueue(() => process.call(this, raw))
+    if (!raw?.message) continue
+    if (raw.key?.remoteJid === "status@broadcast") continue
+
+    const msg =
+      raw.message?.conversation ||
+      raw.message?.extendedTextMessage?.text
+
+    if (!msg) continue
+
+    const c = msg.charCodeAt(0)
+    if (c !== 46 && c !== 33) continue
+
+    schedule(raw.key.remoteJid, () => process.call(this, raw))
   }
 }
 
 async function process(raw) {
-  if (!raw?.message) return
-  if (raw.key?.remoteJid === "status@broadcast") return
-
-  const quickText =
-    raw.message?.conversation ||
-    raw.message?.extendedTextMessage?.text
-
-  if (!quickText) return
-
-  const code = quickText.charCodeAt(0)
-  if (code !== 46 && code !== 33) return
-
   const m = await smsg(this, raw)
   if (!m || m.isBaileys || !m.text) return
 
@@ -159,21 +158,17 @@ async function process(raw) {
   const exec = plugin.exec || plugin.default || plugin
   if (!exec) return
 
-  try {
-    await exec.call(this, m, {
-      conn: this,
-      args,
-      command,
-      usedPrefix: m.text[0],
-      isROwner,
-      isOwner,
-      isAdmin,
-      isBotAdmin,
-      getGroupMeta: plugin.needsMeta && isGroup
-        ? async () => await this.groupMetadata(m.chat)
-        : null
-    })
-  } catch (e) {
-    console.error("Plugin error:", e)
-  }
+  await exec.call(this, m, {
+    conn: this,
+    args,
+    command,
+    usedPrefix: m.text[0],
+    isROwner,
+    isOwner,
+    isAdmin,
+    isBotAdmin,
+    getGroupMeta: plugin.needsMeta && isGroup
+      ? async () => await this.groupMetadata(m.chat)
+      : null
+  })
 }
