@@ -121,7 +121,7 @@ async function process(raw) {
   const [cmd, ...args] = body.split(/\s+/)
   const command = cmd.toLowerCase()
 
-  const plugin = global.COMMAND_MAP?.get(command)
+  const plugin = global.PLUGIN_BY_COMMAND?.get(command)
   if (!plugin || plugin.disabled) return
 
   const isGroup = m.isGroup
