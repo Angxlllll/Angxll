@@ -8,57 +8,61 @@ const GROUP_TTL = 60000
 const MAX_GROUP_CACHE = 500
 const MAX_CONCURRENT = 5
 
-const groupCache = new Map()
+const adminCache = new Map()
 
 let activeProcesses = 0
 const queue = []
 
 function runNext() {
-  if (queue.length === 0 || activeProcesses >= MAX_CONCURRENT) return
-  activeProcesses++
+  if (activeProcesses >= MAX_CONCURRENT) return
   const job = queue.shift()
-  job().finally(() => {
-    activeProcesses--
-    runNext()
-  })
+  if (!job) return
+  activeProcesses++
+  job()
 }
 
 function enqueue(fn) {
-  return new Promise((resolve) => {
-    queue.push(() => fn().then(resolve))
+  return new Promise(resolve => {
+    queue.push(async () => {
+      try {
+        const r = await fn()
+        resolve(r)
+      } finally {
+        activeProcesses--
+        runNext()
+      }
+    })
     runNext()
   })
 }
 
-async function getGroupMeta(conn, chatId) {
-  const cached = groupCache.get(chatId)
-
-  if (cached && (Date.now() - cached.t < GROUP_TTL)) {
+async function getGroupAdmins(conn, chatId) {
+  const cached = adminCache.get(chatId)
+  if (cached && Date.now() - cached.t < GROUP_TTL) {
     return cached.v
   }
 
   const meta = await conn.groupMetadata(chatId)
+  const participants = Array.isArray(meta?.participants) ? meta.participants : []
 
   const admins = new Set()
-  const participants = Array.isArray(meta?.participants)
-    ? meta.participants
-    : []
 
   for (const p of participants) {
-    if (p?.admin === "admin" || p?.admin === "superadmin") {
+    if (p?.admin) {
       admins.add(DIGITS(p.id || p.jid))
     }
   }
 
-  const value = { meta, admins }
-
-  if (groupCache.size > MAX_GROUP_CACHE) {
-    groupCache.clear()
+  if (adminCache.size > MAX_GROUP_CACHE) {
+    adminCache.clear()
   }
 
-  groupCache.set(chatId, { v: value, t: Date.now() })
+  adminCache.set(chatId, {
+    v: admins,
+    t: Date.now()
+  })
 
-  return value
+  return admins
 }
 
 const FAIL = {
@@ -70,13 +74,9 @@ const FAIL = {
 
 global.dfail = async (t, m, conn) => {
   if (!FAIL[t]) return
-
-  conn.sendMessage(
+  await conn.sendMessage(
     m.chat,
-    {
-      text: FAIL[t],
-      ...(await global.rcanal(conn, m))
-    },
+    { text: FAIL[t], ...(await global.rcanal(conn, m)) },
     { quoted: m }
   )
 }
@@ -85,20 +85,26 @@ export async function handler(update) {
   const msgs = update?.messages
   if (!msgs) return
 
-  await Promise.all(
-    msgs.map(raw => enqueue(() => process.call(this, raw)))
-  )
+  for (const raw of msgs) {
+    enqueue(() => process.call(this, raw))
+  }
 }
 
 async function process(raw) {
   if (!raw?.message) return
   if (raw.key?.remoteJid === "status@broadcast") return
 
+  const quickText =
+    raw.message?.conversation ||
+    raw.message?.extendedTextMessage?.text
+
+  if (!quickText) return
+
+  const code = quickText.charCodeAt(0)
+  if (code !== 46 && code !== 33) return
+
   const m = await smsg(this, raw)
   if (!m || m.isBaileys || !m.text) return
-
-  const prefix = m.text[0]
-  if (prefix !== "." && prefix !== "!") return
 
   const body = m.text.slice(1).trim()
   if (!body) return
@@ -109,10 +115,9 @@ async function process(raw) {
   const plugin = global.COMMAND_MAP?.get(command)
   if (!plugin || plugin.disabled) return
 
-const chatId = m.chat
-const isGroup = m.isGroup
-const senderNo = m.senderNum
-const isFromMe = m.fromMe
+  const isGroup = m.isGroup
+  const senderNo = m.senderNum
+  const isFromMe = m.fromMe
 
   const owners = global.owner || []
 
@@ -124,21 +129,19 @@ const isFromMe = m.fromMe
 
   let isAdmin = false
   let isBotAdmin = false
-  let groupData = null
+  let groupAdmins = null
 
   if (isGroup) {
-    groupData = await getGroupMeta(this, chatId)
+    groupAdmins = await getGroupAdmins(this, m.chat)
 
-    isAdmin =
-      isOwner ||
-      groupData.admins.has(senderNo)
+    isAdmin = isOwner || groupAdmins.has(senderNo)
 
-    const botJid = decodeJid(this.user?.id || "")
-    const botNo = DIGITS(botJid)
+    if (!global.botNumber) {
+      const jid = decodeJid(this.user?.id || "")
+      global.botNumber = DIGITS(jid)
+    }
 
-    isBotAdmin =
-      isOwner ||
-      groupData.admins.has(botNo)
+    isBotAdmin = isOwner || groupAdmins.has(global.botNumber)
   }
 
   if (plugin.rowner && !isROwner)
@@ -161,13 +164,13 @@ const isFromMe = m.fromMe
       conn: this,
       args,
       command,
-      usedPrefix: prefix,
+      usedPrefix: m.text[0],
       isROwner,
       isOwner,
       isAdmin,
       isBotAdmin,
-      getGroupMeta: isGroup
-        ? async () => groupData.meta
+      getGroupMeta: plugin.needsMeta && isGroup
+        ? async () => await this.groupMetadata(m.chat)
         : null
     })
   } catch (e) {
