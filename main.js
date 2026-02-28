@@ -3,7 +3,6 @@ import "./config.js"
 
 import fs from "fs"
 import path from "path"
-import readline from "readline"
 import readlineSync from "readline-sync"
 import chalk from "chalk"
 import pino from "pino"
@@ -176,20 +175,8 @@ async function startSock() {
     if (!messages?.length) return
 
     const m = messages[0]
-    if (!m.message) return
+    if (!m?.message) return
     if (m.key?.remoteJid === "status@broadcast") return
-
-    const text =
-      m.message.conversation ||
-      m.message.extendedTextMessage?.text ||
-      m.message.imageMessage?.caption ||
-      m.message.videoMessage?.caption ||
-      ""
-
-    if (!text) return
-
-    const prefix = global.prefix || "."
-    if (!text.startsWith(prefix)) return
 
     messageQueue.push({ messages: [m] })
     processQueue()
