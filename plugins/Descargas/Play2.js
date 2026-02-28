@@ -1,52 +1,51 @@
 import axios from "axios"
 import yts from "yt-search"
+import http from "http"
+import https from "https"
+
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 100,
+  maxFreeSockets: 10,
+  timeout: 60000
+})
+
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 100,
+  maxFreeSockets: 10,
+  timeout: 60000
+})
+
+const axiosInstance = axios.create({
+  httpAgent,
+  httpsAgent
+})
 
 const API_BASE_GLOBAL = (global.APIs?.may || "").replace(/\/+$/, "")
 const API_KEY_GLOBAL = global.APIKeys?.may || ""
-
 const TIMEOUT_MS = 60000
 
-async function sendFast(conn, msg, video, caption) {
-  const res = await axios.get(`${API_BASE_GLOBAL}/ytdl`, {
-    params: { url: video.url, type: "mp4", apikey: API_KEY_GLOBAL },
-    timeout: 20000
-  })
-
-  if (!res?.data?.status || !res.data.result?.url) throw new Error("Fast failed")
-
-  await conn.sendMessage(
-    msg.chat,
-    {
-      video: { url: res.data.result.url },
-      mimetype: "video/mp4",
-      caption
-    },
-    { quoted: msg }
-  )
+async function getFastUrl(url) {
+  if (!API_BASE_GLOBAL || !API_KEY_GLOBAL) return null
+  try {
+    const { data } = await axiosInstance.get(`${API_BASE_GLOBAL}/ytdl`, {
+      params: { url, type: "mp4", apikey: API_KEY_GLOBAL },
+      timeout: 15000
+    })
+    if (data?.status && data?.result?.url) return data.result.url
+  } catch {}
+  return null
 }
 
-async function sendSafe(conn, msg, video, caption) {
-  const api = `https://api-faa.my.id/faa/ytmp4?url=${encodeURIComponent(video.url)}`
-  
-  const { data } = await axios.get(api, {
-    timeout: 30000,
-    validateStatus: () => true
-  })
-
-  if (!data?.status || !data?.result?.download_url) {
-    throw new Error("Safe failed")
-  }
-
-  await conn.sendMessage(
-    msg.chat,
-    {
-      video: { url: data.result.download_url },
-      mimetype: "video/mp4",
-      fileName: sanitizeFilename(video.title) + ".mp4",
-      caption
-    },
-    { quoted: msg }
-  )
+async function getSafeUrl(url) {
+  try {
+    const api = `https://api-faa.my.id/faa/ytmp4?url=${encodeURIComponent(url)}`
+    const { data } = await axiosInstance.get(api, { timeout: 20000 })
+    if (data?.status && data?.result?.download_url)
+      return data.result.download_url
+  } catch {}
+  return null
 }
 
 const handler = async (msg, { conn, args, usedPrefix, command }) => {
@@ -64,37 +63,48 @@ const handler = async (msg, { conn, args, usedPrefix, command }) => {
     react: { text: "🎬", key: msg.key }
   })
 
-  let finished = false
-
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => {
-      if (!finished) reject(new Error("Tiempo de espera agotado"))
-    }, TIMEOUT_MS)
-  )
-
   try {
-    await Promise.race([
-      (async () => {
-        const search = await yts(query)
-        const video = search.videos?.[0]
-        if (!video) throw new Error("Sin resultados")
+    let video
+    let videoUrl
 
-        const caption =
-`🎬 *${video.title}*
+    if (query.startsWith("http")) {
+      videoUrl = query
+      video = { title: "Descargando...", author: {}, timestamp: "" }
+    } else {
+      const search = await yts(query)
+      video = search.videos?.[0]
+      videoUrl = video?.url
+    }
+
+    if (!videoUrl) throw new Error("Sin resultados")
+
+    const caption =
+`🎬 *${video.title || "Video"}*
 📺 ${video.author?.name || "—"}
 ⏱ ${video.timestamp || "--:--"}`
 
-        try {
-          await sendFast(conn, msg, video, caption)
-          finished = true
-          return
-        } catch {}
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
-        await sendSafe(conn, msg, video, caption)
-        finished = true
-      })(),
-      timeoutPromise
+    const downloadUrl = await Promise.any([
+      getFastUrl(videoUrl),
+      getSafeUrl(videoUrl)
     ])
+
+    clearTimeout(timeout)
+
+    if (!downloadUrl) throw new Error("No se pudo obtener el video")
+
+    await conn.sendMessage(
+      msg.chat,
+      {
+        video: { url: downloadUrl },
+        mimetype: "video/mp4",
+        caption
+      },
+      { quoted: msg }
+    )
+
   } catch (err) {
     await conn.sendMessage(
       msg.chat,
@@ -109,7 +119,3 @@ handler.help = ["play2 <texto>"]
 handler.tags = ["descargas"]
 
 export default handler
-
-function sanitizeFilename(name = "video") {
-  return name.replace(/[\\/:*?"<>|]+/g, "").trim().slice(0, 100)
-}
