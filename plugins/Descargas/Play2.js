@@ -74,7 +74,7 @@ const handler = async (msg, { conn, args, usedPrefix, command }) => {
 
   if (!query)
     return conn.sendMessage(chatId, {
-      text: `✳️ Usa:\n${usedPrefix}${command} <nombre del video>`
+      text: `🌊 Usa:\n${usedPrefix}${command} <nombre del video>`
     }, { quoted: msg })
 
   await conn.sendMessage(chatId, {
