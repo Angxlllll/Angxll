@@ -104,8 +104,10 @@ export async function handler(update) {
 
     if (!msg) continue
 
-    const c = msg.charCodeAt(0)
-    if (c !== 46 && c !== 33) continue
+    const PREFIX_SET = new Set(['.', '!', '#', '/', '$'])
+
+const first = m.text[0]
+if (!PREFIX_SET.has(first)) return
 
     schedule(raw.key.remoteJid, () => process.call(this, raw))
   }
