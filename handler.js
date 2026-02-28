@@ -8,6 +8,8 @@ const GROUP_TTL = 60000
 const MAX_GROUP_CACHE = 500
 const PLUGIN_TIMEOUT = 8000
 
+const PREFIX_SET = new Set(['.', '!', '#', '/', '$'])
+
 const adminCache = new Map()
 const chatQueues = new Map()
 const processingChats = new Set()
@@ -104,10 +106,8 @@ export async function handler(update) {
 
     if (!msg) continue
 
-    const PREFIX_SET = new Set(['.', '!', '#', '/', '$'])
-
-const first = m.text[0]
-if (!PREFIX_SET.has(first)) return
+    const first = msg[0]
+    if (!PREFIX_SET.has(first)) continue
 
     schedule(raw.key.remoteJid, () => process.call(this, raw))
   }
