@@ -10,119 +10,114 @@ const isValidIP = (ip) => {
 const handler = async (m, { conn, args }) => {
   const ip = (args[0] || '').trim()
 
-  if (!ip) return m.reply('❌ Usa:\n.ip 8.8.8.8')
-  if (!isValidIP(ip)) return m.reply('❌ IP inválida.')
+  if (!ip) {
+    await conn.sendMessage(m.chat, {
+      react: { text: '⚠️', key: m.key }
+    })
+    return m.reply('❌ Usa:\n.ip 8.8.8.8')
+  }
 
-  await m.react('🔎')
+  if (!isValidIP(ip)) {
+    await conn.sendMessage(m.chat, {
+      react: { text: '❌', key: m.key }
+    })
+    return m.reply('❌ IP inválida.')
+  }
 
-  let data = {}
+  await conn.sendMessage(m.chat, {
+    react: { text: '🔎', key: m.key }
+  })
 
-  /* ================= API 1 ================= */
   try {
-    const r = await axios.get(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,regionName,city,zip,lat,lon,timezone,isp,org,as,reverse,mobile,proxy,hosting`)
-    if (r.data.status === 'success') {
-      data = { ...data, ...r.data }
-    }
-  } catch {}
+    let data = {}
 
-  /* ================= API 2 ================= */
-  try {
-    const r = await axios.get(`https://ipwho.is/${ip}`)
-    if (r.data.success) {
-      data = {
-        ...data,
-        continent: r.data.continent,
-        continent_code: r.data.continent_code,
-        currency: r.data.currency?.name,
-        currency_code: r.data.currency?.code,
-        flag: r.data.flag?.emoji,
-        calling_code: r.data.calling_code,
-        languages: r.data.languages,
-        connection_type: r.data.connection?.type
+    try {
+      const r = await axios.get(`https://ipwho.is/${ip}`, { timeout: 7000 })
+      if (r.data.success) {
+        data = {
+          ...data,
+          country: r.data.country,
+          region: r.data.region,
+          city: r.data.city,
+          lat: r.data.latitude,
+          lon: r.data.longitude,
+          timezone: r.data.timezone?.id,
+          isp: r.data.connection?.isp,
+          org: r.data.connection?.org,
+          continent: r.data.continent,
+          flag: r.data.flag?.emoji,
+          calling_code: r.data.calling_code
+        }
       }
-    }
-  } catch {}
+    } catch {}
 
-  /* ================= API 3 ================= */
-  try {
-    const r = await axios.get(`https://ipinfo.io/${ip}/json`)
-    if (r.data) {
-      data = {
-        ...data,
-        hostname: r.data.hostname,
-        company: r.data.org,
-        network: r.data.network
+    try {
+      const r = await axios.get(`https://ipinfo.io/${ip}/json`, { timeout: 7000 })
+      if (r.data) {
+        data = {
+          ...data,
+          hostname: r.data.hostname,
+          company: r.data.org,
+          network: r.data.network
+        }
       }
+    } catch {}
+
+    try {
+      const host = await dns.reverse(ip)
+      if (host.length) data.reverse_dns = host.join(', ')
+    } catch {}
+
+    if (!Object.keys(data).length) {
+      await conn.sendMessage(m.chat, {
+        react: { text: '⚠️', key: m.key }
+      })
+      return m.reply('❌ No se pudo obtener información.')
     }
-  } catch {}
 
-  /* ================= API 4 ================= */
-  try {
-    const r = await axios.get(`https://ipapi.co/${ip}/json/`)
-    if (!r.data.error) {
-      data = {
-        ...data,
-        postal: r.data.postal,
-        country_capital: r.data.country_capital,
-        country_area: r.data.country_area
-      }
-    }
-  } catch {}
+    const maps =
+      data.lat && data.lon
+        ? `https://www.google.com/maps?q=${data.lat},${data.lon}`
+        : 'N/A'
 
-  /* ================= Reverse DNS extra ================= */
-  try {
-    const hostnames = await dns.reverse(ip)
-    if (hostnames.length) data.reverse_dns = hostnames.join(', ')
-  } catch {}
-
-  if (!Object.keys(data).length)
-    return m.reply('❌ No se pudo obtener información.')
-
-  const maps =
-    data.lat && data.lon
-      ? `https://www.google.com/maps?q=${data.lat},${data.lon}`
-      : 'N/A'
-
-  const texto = `
-🌐 *IP INTEL COMPLETO*
-━━━━━━━━━━━━━━━━━━
+    const texto = `
+🌐 *IP LOOKUP*
+━━━━━━━━━━━━━━
 🔢 IP: ${ip}
-🖥 Hostname: ${data.hostname || data.reverse || data.reverse_dns || 'N/A'}
+🖥 Hostname: ${data.hostname || data.reverse_dns || 'N/A'}
 
 🌍 Continente: ${data.continent || 'N/A'}
 🏳 País: ${data.country || 'N/A'} ${data.flag || ''}
-🔠 Código País: ${data.countryCode || 'N/A'}
-📞 Código Telefónico: ${data.calling_code || 'N/A'}
-🗺 Región: ${data.regionName || 'N/A'}
+🗺 Región: ${data.region || 'N/A'}
 🏙 Ciudad: ${data.city || 'N/A'}
-📮 Postal: ${data.zip || data.postal || 'N/A'}
 
 📍 Lat: ${data.lat || 'N/A'}
 📍 Lon: ${data.lon || 'N/A'}
-🗺 Google Maps: ${maps}
+🗺 Maps: ${maps}
 🕒 Zona Horaria: ${data.timezone || 'N/A'}
 
 🏢 ISP: ${data.isp || 'N/A'}
 🏛 Organización: ${data.org || data.company || 'N/A'}
-🧬 ASN: ${data.as || 'N/A'}
 🌐 Red: ${data.network || 'N/A'}
-🔌 Tipo Conexión: ${data.connection_type || 'N/A'}
-
-📱 Móvil: ${data.mobile ?? 'N/A'}
-🛡 Proxy/VPN: ${data.proxy ?? 'N/A'}
-🏢 Hosting/DataCenter: ${data.hosting ?? 'N/A'}
-
-💰 Moneda: ${data.currency || 'N/A'} (${data.currency_code || 'N/A'})
-🗣 Idiomas: ${data.languages || 'N/A'}
-🏛 Capital: ${data.country_capital || 'N/A'}
-📏 Área País: ${data.country_area || 'N/A'}
+📞 Código País: ${data.calling_code || 'N/A'}
 `.trim()
 
-  await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+    await conn.sendMessage(m.chat, {
+      react: { text: '✅', key: m.key }
+    })
+
+    await conn.sendMessage(m.chat, { text: texto }, { quoted: m })
+
+  } catch (err) {
+    await conn.sendMessage(m.chat, {
+      react: { text: '❌', key: m.key }
+    })
+    m.reply('⚠️ Error interno.')
+  }
 }
 
 handler.help = ['ip <direccion>']
 handler.tags = ['herramientas']
-handler.command = ['ip']
+handler.command = /^ip$/i
 
 export default handler
