@@ -164,33 +164,35 @@ async function startSock() {
     }, 3000)
   }
 
-  const messageQueue = []
-  let processing = false
+  sock.ev.on("messages.upsert", update => {
+    if (update.type !== "notify") return
+    if (!update.messages?.length) return
 
-  async function processQueue() {
-    if (processing) return
-    processing = true
+    const filtered = []
 
-    while (messageQueue.length) {
-      const job = messageQueue.shift()
-      try {
-        await handler.handler.call(sock, job)
-      } catch {}
+    for (const m of update.messages) {
+      if (!m?.message) continue
+      if (!m.key?.remoteJid) continue
+
+      const jid = m.key.remoteJid
+
+      if (jid === "status@broadcast") continue
+      if (jid.endsWith("@broadcast")) continue
+
+      const msg = m.message
+
+      if (
+        msg.protocolMessage ||
+        msg.senderKeyDistributionMessage ||
+        msg.reactionMessage
+      ) continue
+
+      filtered.push(m)
     }
 
-    processing = false
-  }
+    if (!filtered.length) return
 
-  sock.ev.on("messages.upsert", ({ messages, type }) => {
-    if (type !== "notify") return
-    if (!messages?.length) return
-
-    const m = messages[0]
-    if (!m?.message) return
-    if (m.key?.remoteJid === "status@broadcast") return
-
-    messageQueue.push({ messages: [m] })
-    processQueue()
+    handler.handler.call(sock, { messages: filtered })
   })
 
   sock.ev.on("connection.update", async update => {
