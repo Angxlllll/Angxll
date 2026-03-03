@@ -12,6 +12,7 @@
     "acrcloud": "^1.4.0",
     "node-cache": "^5.1.2",
     "sharp": "^0.33.0",
+    "ws": "^8.19.0",
     "pino": "^10.1.0",
     "cheerio": "^1.0.0-rc.12",
     "qrcode-terminal": "^0.12.0",
