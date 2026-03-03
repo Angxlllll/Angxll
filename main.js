@@ -110,7 +110,20 @@ async function loadPlugins(dir) {
 
 const handler = await import("./handler.js")
 
+let currentSock = null
+let isStarting = false
+
 async function startSock() {
+  if (isStarting) return
+  isStarting = true
+
+  if (currentSock) {
+    try {
+      currentSock.ev.removeAllListeners()
+      currentSock.ws.close()
+    } catch {}
+  }
+
   const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
   const { version } = await fetchLatestBaileysVersion()
   const logger = pino({ level: "silent" })
@@ -134,6 +147,7 @@ async function startSock() {
     getMessage: async () => ""
   })
 
+  currentSock = sock
   global.conn = sock
   store.bind(sock)
 
@@ -161,9 +175,7 @@ async function startSock() {
       const job = messageQueue.shift()
       try {
         await handler.handler.call(sock, job)
-      } catch (e) {
-        console.error(e)
-      }
+      } catch {}
     }
 
     processing = false
@@ -192,28 +204,16 @@ async function startSock() {
 
     if (connection === "open") {
       console.log(chalk.greenBright("✿ Conectado"))
-
-      const file = "./lastRestarter.json"
-      if (fs.existsSync(file)) {
-        try {
-          const data = JSON.parse(fs.readFileSync(file, "utf-8"))
-          if (data?.chatId && data?.key) {
-            await sock.sendMessage(
-              data.chatId,
-              {
-                text: `✅ ${global.namebot} está en línea nuevamente 🚀`,
-                edit: data.key
-              }
-            )
-          }
-          fs.unlinkSync(file)
-        } catch {}
-      }
+      isStarting = false
     }
 
     if (connection === "close") {
-      if (reason === DisconnectReason.loggedOut) process.exit(0)
-      setTimeout(startSock, 2000)
+      if (reason === DisconnectReason.loggedOut) {
+        process.exit(0)
+      } else {
+        isStarting = false
+        setTimeout(() => startSock(), 3000)
+      }
     }
   })
 }
