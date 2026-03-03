@@ -36,6 +36,8 @@ try {
 const msgRetryCounterCache = new NodeCache({ stdTTL: 30, checkperiod: 60 })
 const userDevicesCache = new NodeCache({ stdTTL: 120, checkperiod: 120 })
 
+const PREFIX_SET = new Set([".", "!", "#", "/", "$"])
+
 const DIGITS = s => String(s).replace(/\D/g, "")
 
 function normalizePhone(input) {
@@ -175,7 +177,6 @@ async function startSock() {
       if (!m.key?.remoteJid) continue
 
       const jid = m.key.remoteJid
-
       if (jid === "status@broadcast") continue
       if (jid.endsWith("@broadcast")) continue
 
@@ -186,6 +187,18 @@ async function startSock() {
         msg.senderKeyDistributionMessage ||
         msg.reactionMessage
       ) continue
+
+      const text =
+        msg.conversation ||
+        msg.extendedTextMessage?.text ||
+        msg.imageMessage?.caption ||
+        msg.videoMessage?.caption ||
+        ""
+
+      if (!text) continue
+
+      const first = text.trim()[0]
+      if (!PREFIX_SET.has(first)) continue
 
       filtered.push(m)
     }
