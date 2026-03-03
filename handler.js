@@ -7,41 +7,44 @@ const DIGITS = s => String(s || "").replace(/\D/g, "")
 const GROUP_TTL = 60000
 const MAX_GROUP_CACHE = 500
 const PLUGIN_TIMEOUT = 8000
-
-const PREFIX_SET = new Set(['.', '!', '#', '/', '$'])
+const MAX_QUEUE_PER_CHAT = 50
 
 const adminCache = new Map()
 const chatQueues = new Map()
-const processingChats = new Set()
 
 function schedule(chatId, job) {
   if (!chatId) return
 
-  if (!chatQueues.has(chatId)) {
-    chatQueues.set(chatId, [])
+  let data = chatQueues.get(chatId)
+
+  if (!data) {
+    data = {
+      queue: [],
+      running: false
+    }
+    chatQueues.set(chatId, data)
   }
 
-  chatQueues.get(chatId).push(job)
+  if (data.queue.length >= MAX_QUEUE_PER_CHAT) return
 
-  if (!processingChats.has(chatId)) {
-    processChat(chatId)
+  data.queue.push(job)
+
+  if (!data.running) {
+    processChat(chatId, data)
   }
 }
 
-async function processChat(chatId) {
-  processingChats.add(chatId)
+async function processChat(chatId, data) {
+  data.running = true
 
-  const queue = chatQueues.get(chatId)
-
-  while (queue && queue.length) {
-    const job = queue.shift()
+  while (data.queue.length) {
+    const job = data.queue.shift()
     try {
       await job()
     } catch {}
   }
 
-  processingChats.delete(chatId)
-  chatQueues.delete(chatId)
+  data.running = false
 }
 
 async function getGroupAdmins(conn, chatId) {
@@ -106,15 +109,6 @@ export async function handler(update) {
     if (!raw.key?.remoteJid) continue
     if (raw.key.remoteJid === "status@broadcast") continue
 
-    const msg =
-      raw.message?.conversation ||
-      raw.message?.extendedTextMessage?.text
-
-    if (!msg) continue
-
-    const first = msg[0]
-    if (!PREFIX_SET.has(first)) continue
-
     schedule(raw.key.remoteJid, () => process.call(this, raw))
   }
 }
@@ -123,21 +117,27 @@ async function process(raw) {
   const m = await smsg(this, raw)
   if (!m || m.isBaileys || !m.text) return
 
-  const body = m.text.slice(1).trim()
+  const text = m.text
+  if (text.length < 2) return
+
+  const body = text.slice(1).trim()
   if (!body) return
 
-  const [cmd, ...args] = body.split(/\s+/)
-  const command = cmd.toLowerCase()
+  const spaceIndex = body.indexOf(" ")
+  const command = (spaceIndex === -1 ? body : body.slice(0, spaceIndex)).toLowerCase()
+  const args = spaceIndex === -1 ? [] : body.slice(spaceIndex + 1).split(/\s+/)
 
   const plugin = global.PLUGIN_BY_COMMAND?.get(command)
   if (!plugin || plugin.disabled) return
+
+  const exec = plugin.exec || plugin.default || plugin
+  if (!exec) return
 
   const isGroup = m.isGroup
   const senderNo = m.senderNum
   const isFromMe = m.fromMe
 
   const owners = global.owner || []
-
   const isROwner =
     Array.isArray(owners) &&
     owners.some(o => DIGITS(Array.isArray(o) ? o[0] : o) === senderNo)
@@ -147,7 +147,7 @@ async function process(raw) {
   let isAdmin = false
   let isBotAdmin = false
 
-  if (isGroup) {
+  if (isGroup && (plugin.admin || plugin.botAdmin)) {
     const groupAdmins = await getGroupAdmins(this, m.chat)
 
     isAdmin = isOwner || groupAdmins.has(senderNo)
@@ -172,22 +172,20 @@ async function process(raw) {
   if (plugin.botAdmin && !isBotAdmin)
     return global.dfail("botAdmin", m, this)
 
-  const exec = plugin.exec || plugin.default || plugin
-  if (!exec) return
-
   await runWithTimeout(
     exec.call(this, m, {
       conn: this,
       args,
       command,
-      usedPrefix: m.text[0],
+      usedPrefix: text[0],
       isROwner,
       isOwner,
       isAdmin,
       isBotAdmin,
-      getGroupMeta: plugin.needsMeta && isGroup
-        ? async () => await this.groupMetadata(m.chat)
-        : null
+      getGroupMeta:
+        plugin.needsMeta && isGroup
+          ? async () => await this.groupMetadata(m.chat)
+          : null
     }),
     PLUGIN_TIMEOUT
   )
