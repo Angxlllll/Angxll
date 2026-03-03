@@ -125,12 +125,11 @@ async function startSock() {
       keys: makeCacheableSignalKeyStore(state.keys, logger)
     },
     syncFullHistory: false,
-    markOnlineOnConnect: false,
-    emitOwnEvents: false,
+    markOnlineOnConnect: true,
     generateHighQualityLinkPreview: false,
     msgRetryCounterCache,
     userDevicesCache,
-    keepAliveIntervalMs: 45000,
+    keepAliveIntervalMs: 20000,
     defaultQueryTimeoutMs: 60000,
     getMessage: async () => ""
   })
