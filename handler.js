@@ -15,6 +15,8 @@ const chatQueues = new Map()
 const processingChats = new Set()
 
 function schedule(chatId, job) {
+  if (!chatId) return
+
   if (!chatQueues.has(chatId)) {
     chatQueues.set(chatId, [])
   }
@@ -44,6 +46,7 @@ async function processChat(chatId) {
 
 async function getGroupAdmins(conn, chatId) {
   const cached = adminCache.get(chatId)
+
   if (cached && Date.now() - cached.t < GROUP_TTL) {
     return cached.v
   }
@@ -52,17 +55,19 @@ async function getGroupAdmins(conn, chatId) {
   const participants = Array.isArray(meta?.participants) ? meta.participants : []
 
   const admins = new Set()
+
   for (const p of participants) {
     if (p?.admin) {
       admins.add(DIGITS(p.id || p.jid))
     }
   }
 
-  if (adminCache.size > MAX_GROUP_CACHE) {
-    adminCache.clear()
-  }
-
   adminCache.set(chatId, { v: admins, t: Date.now() })
+
+  if (adminCache.size > MAX_GROUP_CACHE) {
+    const oldestKey = adminCache.keys().next().value
+    if (oldestKey) adminCache.delete(oldestKey)
+  }
 
   return admins
 }
@@ -98,7 +103,8 @@ export async function handler(update) {
 
   for (const raw of msgs) {
     if (!raw?.message) continue
-    if (raw.key?.remoteJid === "status@broadcast") continue
+    if (!raw.key?.remoteJid) continue
+    if (raw.key.remoteJid === "status@broadcast") continue
 
     const msg =
       raw.message?.conversation ||
@@ -140,10 +146,9 @@ async function process(raw) {
 
   let isAdmin = false
   let isBotAdmin = false
-  let groupAdmins = null
 
   if (isGroup) {
-    groupAdmins = await getGroupAdmins(this, m.chat)
+    const groupAdmins = await getGroupAdmins(this, m.chat)
 
     isAdmin = isOwner || groupAdmins.has(senderNo)
 
@@ -187,9 +192,3 @@ async function process(raw) {
     PLUGIN_TIMEOUT
   )
 }
-
-setInterval(() => {
-  for (const chatId of adminCache.keys()) {
-    getGroupAdmins(global.conn, chatId).catch(() => {})
-  }
-}, 55000)
