@@ -1,16 +1,22 @@
 {
-  "name": "angel-bot",
-  "version": "3.0.0",
-  "type": "module",
-  "private": true,
-  "engines": {
+   "name": "angel-bot",
+   "version": "3.0.0",
+   "type": "module",
+   "private": true,
+   "engines": {
     "node": ">=20.0.0"
-  },
-  "scripts": {
+
+         },
+  
+    "scripts": {
+    "postinstall": "npm dedupe",
     "start": "node main.js"
-  },
-  "dependencies": {
-    "@whiskeysockets/baileys": "github:ds6/buils",
+
+           },
+
+    "dependencies": {
+    "@whiskeysockets/baileys":
+    "github:ds6/buils",
     "axios": "1.13.5",
     "chalk": "5.3.0",
     "node-cache": "5.1.2",
