@@ -1,47 +1,76 @@
-import fs from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 
 const handler = async (m, { conn }) => {
+  conn.sendMessage(m.chat, {
+    react: { text: '🧹', key: m.key }
+  }).catch(() => {})
+
   const sessionPath = path.join('./', global.sessions)
 
-  m.reply('🏞️ Iniciando limpieza completa de sesiones (excepto creds.json)...')
-
-  if (!fs.existsSync(sessionPath)) {
-    return m.reply('🏞️ La carpeta de sesiones no existe.')
-  }
-
-  let eliminados = 0
-
   try {
-    const files = fs.readdirSync(sessionPath)
+    const exists = await fs
+      .access(sessionPath)
+      .then(() => true)
+      .catch(() => false)
 
-    for (const file of files) {
-      if (file === 'creds.json') continue
-
-      const fullPath = path.join(sessionPath, file)
-
-      if (fs.lstatSync(fullPath).isDirectory()) {
-        fs.rmSync(fullPath, { recursive: true, force: true })
-      } else {
-        fs.unlinkSync(fullPath)
-      }
-
-      eliminados++
+    if (!exists) {
+      const fquote = await global.getFakeQuote(m, conn)
+      return conn.sendMessage(
+        m.chat,
+        { text: '🏞️ La carpeta de sesiones no existe.' },
+        { quoted: fquote }
+      )
     }
 
-    if (!eliminados) {
-      return m.reply('🏞️ No había sesiones para eliminar.')
-    }
+    const files = await fs.readdir(sessionPath)
+    let eliminados = 0
 
-    m.reply(
-      `🏞️ Se eliminaron correctamente *${eliminados}* sesiones.\n` +
-      `📁 creds.json fue conservado.\n\n` +
-      `🏞️ *¿Hola? ¿Ya me ves activo?*`
+    await Promise.all(
+      files.map(async (file) => {
+        if (file === 'creds.json') return
+
+        const fullPath = path.join(sessionPath, file)
+        const stat = await fs.lstat(fullPath)
+
+        if (stat.isDirectory()) {
+          await fs.rm(fullPath, { recursive: true, force: true })
+        } else {
+          await fs.unlink(fullPath)
+        }
+
+        eliminados++
+      })
     )
 
+    const fquote = await global.getFakeQuote(m, conn)
+
+    if (!eliminados) {
+      return conn.sendMessage(
+        m.chat,
+        { text: '🏞️ No había sesiones para eliminar.' },
+        { quoted: fquote }
+      )
+    }
+
+    return conn.sendMessage(
+      m.chat,
+      {
+        text:
+          `🏞️ Se eliminaron correctamente *${eliminados}* sesiones.\n` +
+          `📁 creds.json fue conservado.\n\n` +
+          `🏞️ *¿Hola? ¿Ya me ves activo?*`
+      },
+      { quoted: fquote }
+    )
   } catch (e) {
-    console.error(e)
-    m.reply('🏞️ Ocurrió un error limpiando las sesiones.')
+    const fquote = await global.getFakeQuote(m, conn)
+
+    return conn.sendMessage(
+      m.chat,
+      { text: '🏞️ Ocurrió un error limpiando las sesiones.' },
+      { quoted: fquote }
+    )
   }
 }
 
@@ -49,4 +78,5 @@ handler.help = ['𝖣𝗌𝗈𝗐𝗇𝖾𝗋']
 handler.tags = ['𝖮𝖶𝖭𝖤𝖱']
 handler.command = ['delai', 'dsowner', 'ds']
 handler.owner = true
+
 export default handler
