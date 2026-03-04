@@ -1,46 +1,32 @@
-import yts from 'yt-search'
 import axios from 'axios'
 
-const handler = async (msg, { conn, args, usedPrefix, command }) => {
+const handler = async (msg, { conn, args, usedPrefix }) => {
   const query = args.join(' ').trim()
 
   if (!query) {
     await conn.sendMessage(
       msg.chat,
-      { text: `❌ *Error:*\n> Debes escribir el nombre del video.` },
+      { text: `❌ *Error:*\n> Debes escribir el nombre del audio.\n\n✳️ Usa:\n${usedPrefix}play <nombre>` },
       { quoted: msg }
     )
-
-    return conn.sendMessage(
-      msg.chat,
-      { text: `✳️ Usa:\n${usedPrefix} play <nombre del audio>` },
-      { quoted: msg }
-    )
+    return
   }
 
   await conn.sendMessage(
     msg.chat,
-    { text: '*🎧 Descargando audio...*' },
+    { text: '🎧 Buscando y descargando audio...' },
     { quoted: msg }
   )
 
   try {
-    const search = await yts(query)
-    if (!search.videos?.length)
-      throw new Error('No se encontró el audio.')
-
-    const url = search.videos[0].url
-
-    const api = `https://nexevo-api.vercel.app/download/y?url=${encodeURIComponent(url)}`
+    // API que busca + devuelve audio
+    const api = `https://nexevo-api.vercel.app/play?query=${encodeURIComponent(query)}`
     const { data } = await axios.get(api)
 
-    if (!data?.status || !data?.result?.status || !data?.result?.url)
-      throw new Error('Error en descarga.')
+    if (!data?.status || !data?.result?.url)
+      throw new Error('No se pudo obtener el audio.')
 
-    const title =
-      data.result.info?.title ||
-      search.videos[0]?.title ||
-      'audio'
+    const title = data.result.title || 'audio'
 
     await conn.sendMessage(
       msg.chat,
@@ -61,9 +47,9 @@ const handler = async (msg, { conn, args, usedPrefix, command }) => {
   }
 }
 
-handler.help = ['play <título>', 'ytmp3 <título>']
+handler.help = ['play <título>']
 handler.tags = ['download']
-handler.command = ['play', 'ytamp3']
+handler.command = ['play', 'ytmp3']
 
 export default handler
 
