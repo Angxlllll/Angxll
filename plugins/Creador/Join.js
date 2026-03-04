@@ -43,6 +43,4 @@ const handler = async (m, { conn, args }) => {
 
 handler.command = ['join', 'entrar']
 handler.owner = true
-handler.botAdmin = true
-
 export default handler
