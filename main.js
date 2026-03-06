@@ -1,4 +1,4 @@
-import "./lib/before.js"
+ñimport "./lib/before.js"
 import "./config.js"
 
 import fs from "fs"
@@ -35,13 +35,14 @@ const msgRetryCounterCache = new NodeCache({ stdTTL: 30 })
 const userDevicesCache = new NodeCache({ stdTTL: 120 })
 
 const PREFIX = new Uint8Array(128)
+
 PREFIX[".".charCodeAt(0)] = 1
 PREFIX["!".charCodeAt(0)] = 1
 PREFIX["#".charCodeAt(0)] = 1
 PREFIX["/".charCodeAt(0)] = 1
 PREFIX["$".charCodeAt(0)] = 1
 
-const DIGITS = s => String(s).replace(/\D/g, "")
+const DIGITS = s => String(s || "").replace(/\D/g, "")
 
 function normalizePhone(input) {
 
@@ -49,7 +50,8 @@ function normalizePhone(input) {
 
   if (!s) return ""
 
-  if (s.startsWith("0")) s = s.replace(/^0+/, "")
+  if (s.startsWith("0"))
+    s = s.replace(/^0+/, "")
 
   if (s.startsWith("52") && !s.startsWith("521") && s.length >= 12)
     s = "521" + s.slice(2)
@@ -81,9 +83,12 @@ if (!fs.existsSync(`${SESSION_DIR}/creds.json`)) {
 
 async function indexPlugins(dir) {
 
-  for (const f of fs.readdirSync(dir)) {
+  const files = await fs.promises.readdir(dir)
+
+  for (const f of files) {
 
     const full = path.join(dir, f)
+
     const stat = await fs.promises.stat(full)
 
     if (stat.isDirectory()) {
@@ -94,12 +99,15 @@ async function indexPlugins(dir) {
     if (!f.endsWith(".js")) continue
 
     const m = await import(full)
+
     const plugin = m.default || m
 
     let cmds = plugin.command
+
     if (!cmds) continue
 
-    if (!Array.isArray(cmds)) cmds = [cmds]
+    if (!Array.isArray(cmds))
+      cmds = [cmds]
 
     for (const cmd of cmds)
       global.PLUGIN_PATH.set(cmd.toLowerCase(), full)
@@ -113,20 +121,27 @@ async function loadPlugin(cmd) {
   if (global.PLUGIN_EXEC.has(cmd))
     return global.PLUGIN_EXEC.get(cmd)
 
-  const path = global.PLUGIN_PATH.get(cmd)
-  if (!path) return null
+  const file = global.PLUGIN_PATH.get(cmd)
 
-  let plugin = global.PLUGIN_CACHE.get(path)
+  if (!file) return null
+
+  let plugin = global.PLUGIN_CACHE.get(file)
 
   if (!plugin) {
-    const m = await import(path + "?update=" + Date.now())
+
+    const m = await import(file + "?update=" + Date.now())
+
     plugin = m.default || m
-    global.PLUGIN_CACHE.set(path, plugin)
+
+    global.PLUGIN_CACHE.set(file, plugin)
+
   }
 
   const exec = plugin.run
     ? ctx => plugin.run(ctx)
     : ctx => plugin(ctx.conn, ctx.m, ctx)
+
+  exec.plugin = plugin
 
   global.PLUGIN_EXEC.set(cmd, exec)
 
@@ -140,6 +155,7 @@ let sock
 async function startSock() {
 
   const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
+
   const { version } = await fetchLatestBaileysVersion()
 
   sock = makeWASocket({
@@ -162,7 +178,7 @@ async function startSock() {
 
     keepAliveIntervalMs: 20000,
 
-    getMessage: async key => {
+    getMessage: async () => {
       return { conversation: "" }
     }
 
@@ -199,7 +215,8 @@ async function startSock() {
 
       console.log(chalk.red("Conexion cerrada"))
 
-      if (shouldReconnect) startSock()
+      if (shouldReconnect)
+        startSock()
 
     }
 
@@ -212,7 +229,9 @@ async function startSock() {
 
     if (update.type !== "notify") return
 
-    for (const m of update.messages) {
+    const msgs = update.messages
+
+    for (const m of msgs) {
 
       const msg = m.message
       if (!msg) continue
@@ -228,6 +247,7 @@ async function startSock() {
       if (!text) continue
 
       const first = text.charCodeAt(0)
+
       if (!PREFIX[first]) continue
 
       handler.default(sock, m, loadPlugin)
@@ -239,4 +259,5 @@ async function startSock() {
 }
 
 await indexPlugins(path.join(__dirname, "plugins"))
+
 await startSock()
