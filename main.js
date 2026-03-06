@@ -65,9 +65,7 @@ let phoneNumber = ""
 
 if (!fs.existsSync(`${SESSION_DIR}/creds.json`)) {
 
-  option = readlineSync.question(
-    "\n1 QR\n2 Codigo\n--> "
-  )
+  option = readlineSync.question("\n1 QR\n2 Codigo\n--> ")
 
   if (option === "2") {
 
@@ -86,33 +84,25 @@ async function indexPlugins(dir) {
   for (const f of fs.readdirSync(dir)) {
 
     const full = path.join(dir, f)
-
     const stat = await fs.promises.stat(full)
 
     if (stat.isDirectory()) {
-
       await indexPlugins(full)
       continue
-
     }
 
     if (!f.endsWith(".js")) continue
 
     const m = await import(full)
-
     const plugin = m.default || m
 
     let cmds = plugin.command
-
     if (!cmds) continue
 
     if (!Array.isArray(cmds)) cmds = [cmds]
 
-    for (const cmd of cmds) {
-
+    for (const cmd of cmds)
       global.PLUGIN_PATH.set(cmd.toLowerCase(), full)
-
-    }
 
   }
 
@@ -124,19 +114,14 @@ async function loadPlugin(cmd) {
     return global.PLUGIN_EXEC.get(cmd)
 
   const path = global.PLUGIN_PATH.get(cmd)
-
   if (!path) return null
 
   let plugin = global.PLUGIN_CACHE.get(path)
 
   if (!plugin) {
-
     const m = await import(path + "?update=" + Date.now())
-
     plugin = m.default || m
-
     global.PLUGIN_CACHE.set(path, plugin)
-
   }
 
   const exec = plugin.run
@@ -155,7 +140,6 @@ let sock
 async function startSock() {
 
   const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR)
-
   const { version } = await fetchLatestBaileysVersion()
 
   sock = makeWASocket({
@@ -164,7 +148,7 @@ async function startSock() {
 
     logger: pino({ level: "silent" }),
 
-    printQRInTerminal: false,
+    printQRInTerminal: option === "1",
 
     browser: Browsers.macOS("Chrome"),
 
@@ -178,7 +162,9 @@ async function startSock() {
 
     keepAliveIntervalMs: 20000,
 
-    getMessage: async () => ""
+    getMessage: async key => {
+      return { conversation: "" }
+    }
 
   })
 
@@ -200,6 +186,28 @@ async function startSock() {
 
   }
 
+  sock.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
+
+    if (qr && option === "1")
+      qrcode.generate(qr, { small: true })
+
+    if (connection === "close") {
+
+      const shouldReconnect =
+        lastDisconnect?.error?.output?.statusCode !==
+        DisconnectReason.loggedOut
+
+      console.log(chalk.red("Conexion cerrada"))
+
+      if (shouldReconnect) startSock()
+
+    }
+
+    if (connection === "open")
+      console.log(chalk.green("Bot conectado"))
+
+  })
+
   sock.ev.on("messages.upsert", async update => {
 
     if (update.type !== "notify") return
@@ -207,7 +215,6 @@ async function startSock() {
     for (const m of update.messages) {
 
       const msg = m.message
-
       if (!msg) continue
 
       const text =
@@ -221,7 +228,6 @@ async function startSock() {
       if (!text) continue
 
       const first = text.charCodeAt(0)
-
       if (!PREFIX[first]) continue
 
       handler.default(sock, m, loadPlugin)
@@ -233,5 +239,4 @@ async function startSock() {
 }
 
 await indexPlugins(path.join(__dirname, "plugins"))
-
 await startSock()
