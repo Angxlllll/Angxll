@@ -98,37 +98,36 @@ function runWithTimeout(promise, ms) {
 
 }
 
-export default async function handler(conn, m, loadPlugin) {
+export default async function handler(conn, raw, loadPlugin) {
 
   try {
 
-    m = smsg(conn, m)
+    const m = await smsg(conn, raw)
+
+    if (!m || m.isBaileys || !m.text) return
 
     const text = m.text
-    if (!text) return
 
-    const body = text.slice(1)
+    const body = text.slice(1).trim()
 
-    let i = body.indexOf(" ")
+    if (!body) return
 
-    let command
-    let args = []
+    const space = body.indexOf(" ")
 
-    if (i === -1)
-      command = body.toLowerCase()
-    else
-      command = body.slice(0, i).toLowerCase()
+    const command =
+      (space === -1 ? body : body.slice(0, space))
+      .toLowerCase()
 
     const exec = await loadPlugin(command)
 
     if (!exec) return
 
-    if (i !== -1)
-      args = body.slice(i + 1).trim().split(/\s+/)
+    const args =
+      space === -1
+        ? []
+        : body.slice(space + 1).trim().split(/\s+/)
 
     schedule(m.chat, async () => {
-
-      const isGroup = m.isGroup
 
       const sender = DIGITS(m.sender)
 
@@ -144,7 +143,7 @@ export default async function handler(conn, m, loadPlugin) {
       let isAdmin = false
       let isBotAdmin = false
 
-      if (isGroup) {
+      if (m.isGroup) {
 
         const admins = await getGroupAdmins(conn, m.chat)
 
@@ -167,20 +166,21 @@ export default async function handler(conn, m, loadPlugin) {
       if (plugin.botAdmin && !isBotAdmin)
         return global.dfail?.("botAdmin", m, conn)
 
-      const ctx = {
-        conn,
-        m,
-        args,
-        command,
-        isOwner,
-        isROwner,
-        isAdmin,
-        isBotAdmin
-      }
-
       await runWithTimeout(
-        exec(ctx),
+
+        exec({
+          conn,
+          m,
+          args,
+          command,
+          isOwner,
+          isROwner,
+          isAdmin,
+          isBotAdmin
+        }),
+
         PLUGIN_TIMEOUT
+
       )
 
     })
