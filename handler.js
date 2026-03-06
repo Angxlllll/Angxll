@@ -13,180 +13,178 @@ const adminCache = new Map()
 const chatQueues = new Map()
 
 function schedule(chatId, job) {
+
   if (!chatId) return
 
   let data = chatQueues.get(chatId)
 
   if (!data) {
-    data = {
-      queue: [],
-      running: false
-    }
+
+    data = { queue: [], running: false }
+
     chatQueues.set(chatId, data)
+
   }
 
   if (data.queue.length >= MAX_QUEUE_PER_CHAT) return
 
   data.queue.push(job)
 
-  if (!data.running) {
+  if (!data.running)
     processChat(chatId, data)
-  }
+
 }
 
 async function processChat(chatId, data) {
+
   data.running = true
 
   while (data.queue.length) {
+
     const job = data.queue.shift()
-    try {
-      await job()
-    } catch {}
+
+    try { await job() } catch {}
+
   }
 
   data.running = false
+
 }
 
 async function getGroupAdmins(conn, chatId) {
+
   const cached = adminCache.get(chatId)
 
-  if (cached && Date.now() - cached.t < GROUP_TTL) {
+  if (cached && Date.now() - cached.t < GROUP_TTL)
     return cached.v
-  }
 
   const meta = await conn.groupMetadata(chatId)
-  const participants = Array.isArray(meta?.participants) ? meta.participants : []
+
+  const participants = Array.isArray(meta?.participants)
+    ? meta.participants
+    : []
 
   const admins = new Set()
 
   for (const p of participants) {
-    if (p?.admin) {
+
+    if (p?.admin)
       admins.add(DIGITS(p.id || p.jid))
-    }
+
   }
 
   adminCache.set(chatId, { v: admins, t: Date.now() })
 
   if (adminCache.size > MAX_GROUP_CACHE) {
-    const oldestKey = adminCache.keys().next().value
-    if (oldestKey) adminCache.delete(oldestKey)
+
+    const oldest = adminCache.keys().next().value
+
+    if (oldest) adminCache.delete(oldest)
+
   }
 
   return admins
+
 }
 
 function runWithTimeout(promise, ms) {
+
   return Promise.race([
     promise,
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Timeout")), ms)
     )
   ])
+
 }
 
-const FAIL = {
-  rowner: "Solo el owner",
-  owner: "Solo el owner",
-  admin: "Solo admins",
-  botAdmin: "Necesito admin"
-}
+export default async function handler(conn, m, loadPlugin) {
 
-global.dfail = async (t, m, conn) => {
-  if (!FAIL[t]) return
-  await conn.sendMessage(
-    m.chat,
-    { text: FAIL[t], ...(await global.rcanal(conn, m)) },
-    { quoted: m }
-  )
-}
+  try {
 
-export async function handler(update) {
-  const msgs = update?.messages
-  if (!msgs) return
+    m = smsg(conn, m)
 
-  for (const raw of msgs) {
-    if (!raw?.message) continue
-    if (!raw.key?.remoteJid) continue
-    if (raw.key.remoteJid === "status@broadcast") continue
+    const text = m.text
+    if (!text) return
 
-    schedule(raw.key.remoteJid, () => process.call(this, raw))
-  }
-}
+    const body = text.slice(1)
 
-async function process(raw) {
-  const m = await smsg(this, raw)
-  if (!m || m.isBaileys || !m.text) return
+    let i = body.indexOf(" ")
 
-  const text = m.text
-  if (text.length < 2) return
+    let command
+    let args = []
 
-  const body = text.slice(1).trim()
-  if (!body) return
+    if (i === -1)
+      command = body.toLowerCase()
+    else
+      command = body.slice(0, i).toLowerCase()
 
-  const spaceIndex = body.indexOf(" ")
-  const command = (spaceIndex === -1 ? body : body.slice(0, spaceIndex)).toLowerCase()
-  const args = spaceIndex === -1 ? [] : body.slice(spaceIndex + 1).split(/\s+/)
+    const exec = await loadPlugin(command)
 
-  const plugin = global.PLUGIN_BY_COMMAND?.get(command)
-  if (!plugin || plugin.disabled) return
+    if (!exec) return
 
-  const exec = plugin.exec || plugin.default || plugin
-  if (!exec) return
+    if (i !== -1)
+      args = body.slice(i + 1).trim().split(/\s+/)
 
-  const isGroup = m.isGroup
-  const senderNo = m.senderNum
-  const isFromMe = m.fromMe
+    schedule(m.chat, async () => {
 
-  const owners = global.owner || []
-  const isROwner =
-    Array.isArray(owners) &&
-    owners.some(o => DIGITS(Array.isArray(o) ? o[0] : o) === senderNo)
+      const isGroup = m.isGroup
 
-  const isOwner = isROwner
+      const sender = DIGITS(m.sender)
 
-  let isAdmin = false
-  let isBotAdmin = false
+      const botNumber = DIGITS(conn.user.id)
 
-  if (isGroup && (plugin.admin || plugin.botAdmin)) {
-    const groupAdmins = await getGroupAdmins(this, m.chat)
+      const owners = (global.owner || []).map(o =>
+        DIGITS(Array.isArray(o) ? o[0] : o)
+      )
 
-    isAdmin = isOwner || groupAdmins.has(senderNo)
+      const isOwner = owners.includes(sender)
+      const isROwner = isOwner
 
-    if (!global.botNumber) {
-      const jid = decodeJid(this.user?.id || "")
-      global.botNumber = DIGITS(jid)
-    }
+      let isAdmin = false
+      let isBotAdmin = false
 
-    isBotAdmin = isOwner || groupAdmins.has(global.botNumber)
-  }
+      if (isGroup) {
 
-  if (plugin.rowner && !isROwner)
-    return global.dfail("rowner", m, this)
+        const admins = await getGroupAdmins(conn, m.chat)
 
-  if (plugin.owner && !isOwner)
-    return global.dfail("owner", m, this)
+        isAdmin = admins.has(sender)
+        isBotAdmin = admins.has(botNumber)
 
-  if (plugin.admin && !isAdmin && !isFromMe)
-    return global.dfail("admin", m, this)
+      }
 
-  if (plugin.botAdmin && !isBotAdmin)
-    return global.dfail("botAdmin", m, this)
+      const plugin = exec.plugin || {}
 
-  await runWithTimeout(
-    exec.call(this, m, {
-      conn: this,
-      args,
-      command,
-      usedPrefix: text[0],
-      isROwner,
-      isOwner,
-      isAdmin,
-      isBotAdmin,
-      getGroupMeta:
-        plugin.needsMeta && isGroup
-          ? async () => await this.groupMetadata(m.chat)
-          : null
-    }),
-    PLUGIN_TIMEOUT
-  )
+      if (plugin.rowner && !isROwner)
+        return global.dfail?.("rowner", m, conn)
+
+      if (plugin.owner && !isOwner)
+        return global.dfail?.("owner", m, conn)
+
+      if (plugin.admin && !isAdmin)
+        return global.dfail?.("admin", m, conn)
+
+      if (plugin.botAdmin && !isBotAdmin)
+        return global.dfail?.("botAdmin", m, conn)
+
+      const ctx = {
+        conn,
+        m,
+        args,
+        command,
+        isOwner,
+        isROwner,
+        isAdmin,
+        isBotAdmin
+      }
+
+      await runWithTimeout(
+        exec(ctx),
+        PLUGIN_TIMEOUT
+      )
+
+    })
+
+  } catch {}
+
 }
