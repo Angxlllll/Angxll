@@ -1,5 +1,7 @@
 import { smsg, decodeJid } from "./lib/simple.js"
 
+Error.stackTraceLimit = 0
+
 const DIGITS = s => String(s || "").replace(/\D/g, "")
 
 const GROUP_TTL = 60000
@@ -8,12 +10,14 @@ const MAX_GROUP_CACHE = 500
 const PLUGIN_TIMEOUT = 8000
 
 const MAX_PLUGIN_CONCURRENCY = 5
+const MAX_QUEUE_PER_CHAT = 50
 
 let runningPlugins = 0
 const pluginQueue = []
 
 const adminCache = new Map()
 const groupMetaCache = new Map()
+const chatQueues = new Map()
 
 function fastArgs(str) {
   const args = []
@@ -21,9 +25,7 @@ function fastArgs(str) {
 
   for (let i = 0; i <= str.length; i++) {
     if (i === str.length || str.charCodeAt(i) === 32) {
-      if (i > start) {
-        args.push(str.slice(start, i))
-      }
+      if (i > start) args.push(str.slice(start, i))
       start = i + 1
     }
   }
@@ -57,6 +59,36 @@ async function runPlugin(fn) {
   }
 }
 
+function schedule(chatId, job) {
+  if (!chatId) return
+
+  let data = chatQueues.get(chatId)
+
+  if (!data) {
+    data = { queue: [], running: false }
+    chatQueues.set(chatId, data)
+  }
+
+  if (data.queue.length >= MAX_QUEUE_PER_CHAT) return
+
+  data.queue.push(job)
+
+  if (!data.running) processChat(chatId, data)
+}
+
+async function processChat(chatId, data) {
+  data.running = true
+
+  while (data.queue.length) {
+    const job = data.queue.shift()
+    try {
+      await job()
+    } catch {}
+  }
+
+  data.running = false
+}
+
 async function getGroupMetadata(conn, jid) {
   const cached = groupMetaCache.get(jid)
 
@@ -82,7 +114,6 @@ async function getGroupAdmins(conn, chatId) {
   }
 
   const meta = await getGroupMetadata(conn, chatId)
-
   const participants = meta?.participants || []
 
   const admins = new Set()
@@ -105,17 +136,39 @@ async function getGroupAdmins(conn, chatId) {
   return admins
 }
 
+const FAIL = {
+  rowner: "Solo el owner",
+  owner: "Solo el owner",
+  admin: "Solo admins",
+  botAdmin: "Necesito ser admin"
+}
+
+global.dfail = async (type, m, conn) => {
+  const msg = FAIL[type]
+  if (!msg) return
+
+  await conn.sendMessage(
+    m.chat,
+    { text: msg },
+    { quoted: m }
+  )
+}
+
 export async function handler(update) {
   const msgs = update?.messages
   if (!msgs) return
 
   for (const raw of msgs) {
     if (!raw?.message) continue
-    await process.call(this, raw)
+    if (!raw.key?.remoteJid) continue
+    if (raw.key.remoteJid === "status@broadcast") continue
+
+    schedule(raw.key.remoteJid, () => process.call(this, raw))
   }
 }
 
 async function process(raw) {
+
   const m = await smsg(this, raw)
 
   if (!m || m.isBaileys || !m.text) return
@@ -124,7 +177,6 @@ async function process(raw) {
   if (text.length < 2) return
 
   const first = text.charCodeAt(0)
-
   if (!global.PREFIX_SET.has(first)) return
 
   const prefix = text[0]
@@ -142,10 +194,51 @@ async function process(raw) {
   }
 
   const plugin = global.COMMAND_ROUTER?.[command]
-
   if (!plugin || plugin.disabled) return
 
   const exec = plugin.exec || plugin.default || plugin
+  if (!exec) return
+
+  const isGroup = m.isGroup
+  const senderNo = m.senderNum
+  const isFromMe = m.fromMe
+
+  const owners = global.owner || []
+
+  const isROwner =
+    Array.isArray(owners) &&
+    owners.some(o => DIGITS(Array.isArray(o) ? o[0] : o) === senderNo)
+
+  const isOwner = isROwner
+
+  let isAdmin = false
+  let isBotAdmin = false
+
+  if (isGroup && (plugin.admin || plugin.botAdmin)) {
+
+    const groupAdmins = await getGroupAdmins(this, m.chat)
+
+    isAdmin = isOwner || groupAdmins.has(senderNo)
+
+    if (!global.botNumber) {
+      const jid = decodeJid(this.user?.id || "")
+      global.botNumber = DIGITS(jid)
+    }
+
+    isBotAdmin = isOwner || groupAdmins.has(global.botNumber)
+  }
+
+  if (plugin.rowner && !isROwner)
+    return global.dfail("rowner", m, this)
+
+  if (plugin.owner && !isOwner)
+    return global.dfail("owner", m, this)
+
+  if (plugin.admin && !isAdmin && !isFromMe)
+    return global.dfail("admin", m, this)
+
+  if (plugin.botAdmin && !isBotAdmin)
+    return global.dfail("botAdmin", m, this)
 
   await runPlugin(() =>
     runWithTimeout(
@@ -153,7 +246,11 @@ async function process(raw) {
         conn: this,
         args,
         command,
-        usedPrefix: prefix
+        usedPrefix: prefix,
+        isROwner,
+        isOwner,
+        isAdmin,
+        isBotAdmin
       }),
       PLUGIN_TIMEOUT
     )
