@@ -61,59 +61,80 @@ const savetube = {
     return JSON.parse(Buffer.concat([d.update(data), d.final()]).toString())
   },
 
+  headers: {
+    "content-type": "application/json",
+    origin: "https://save-tube.com",
+    referer: "https://save-tube.com/",
+    "user-agent": "Mozilla/5.0"
+  },
+
   async download(url) {
-    const random = await fetch("https://media.savetube.vip/api/random-cdn", {
-      headers: {
-        origin: "https://save-tube.com",
-        referer: "https://save-tube.com/",
-        "User-Agent": "Mozilla/5.0"
+    try {
+
+      const random = await fetch(
+        "https://media.savetube.vip/api/random-cdn",
+        { headers: this.headers }
+      ).then(r => r.json()).catch(() => null)
+
+      if (!random?.cdn) {
+        return { status: false, error: "CDN no disponible" }
       }
-    }).then(r => r.json())
 
-    const cdn = random.cdn
+      const cdn = random.cdn
 
-    const info = await fetch(`https://${cdn}/v2/info`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        origin: "https://save-tube.com",
-        referer: "https://save-tube.com/",
-        "User-Agent": "Mozilla/5.0"
-      },
-      body: JSON.stringify({ url })
-    }).then(r => r.json())
+      const infoRes = await fetch(`https://${cdn}/v2/info`, {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify({ url })
+      }).catch(() => null)
 
-    if (!info?.status) return { status: false, error: "Info error" }
-
-    const json = this.decrypt(info.data)
-    const format = json.audio_formats.find(a => a.quality === 128) || json.audio_formats[0]
-    if (!format) return { status: false, error: "Audio no disponible" }
-
-    const dl = await fetch(`https://${cdn}/download`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        origin: "https://save-tube.com",
-        referer: "https://save-tube.com/",
-        "User-Agent": "Mozilla/5.0"
-      },
-      body: JSON.stringify({
-        id: json.id,
-        key: json.key,
-        downloadType: "audio",
-        quality: String(format.quality)
-      })
-    }).then(r => r.json())
-
-    const link = dl?.data?.downloadUrl
-    if (!link) return { status: false, error: "Link error" }
-
-    return {
-      status: true,
-      result: {
-        title: json.title,
-        download: link
+      if (!infoRes || infoRes.status !== 200) {
+        return { status: false, error: "Info request failed" }
       }
+
+      const info = await infoRes.json()
+
+      if (!info?.status || !info?.data) {
+        return { status: false, error: "Respuesta inválida" }
+      }
+
+      const json = this.decrypt(info.data)
+
+      const format =
+        json.audio_formats?.find(v => v.quality === 128) ||
+        json.audio_formats?.[0]
+
+      if (!format) {
+        return { status: false, error: "Audio no disponible" }
+      }
+
+      const dl = await fetch(`https://${cdn}/download`, {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify({
+          id: json.id,
+          key: json.key,
+          downloadType: "audio",
+          quality: String(format.quality)
+        })
+      }).then(r => r.json()).catch(() => null)
+
+      const link = dl?.data?.downloadUrl
+
+      if (!link) {
+        return { status: false, error: "Link no generado" }
+      }
+
+      return {
+        status: true,
+        result: {
+          title: json.title,
+          download: link
+        }
+      }
+
+    } catch (e) {
+      return { status: false, error: e.message }
     }
   }
 }
