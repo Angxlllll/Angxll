@@ -1,58 +1,104 @@
-import axios from 'axios'
+import fetch from "node-fetch"
 
-const handler = async (msg, { conn, args, usedPrefix }) => {
-  const query = args.join(' ').trim()
+const UA = {
+ headers: {
+  "user-agent":
+   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+ }
+}
 
-  if (!query) {
-    await conn.sendMessage(
-      msg.chat,
-      { text: `❌ *Error:*\n> Debes escribir el nombre del audio.\n\n✳️ Usa:\n${usedPrefix}play <nombre>` },
-      { quoted: msg }
-    )
-    return
-  }
+async function searchYT(q){
 
-  await conn.sendMessage(
-    msg.chat,
-    { text: '🎧 Buscando y descargando audio...' },
-    { quoted: msg }
+ const res = await fetch(
+  "https://www.youtube.com/results?search_query=" +
+   encodeURIComponent(q),
+  UA
+ )
+
+ const html = await res.text()
+
+ const id = html.match(/"videoId":"(.*?)"/)?.[1]
+
+ if(!id) return null
+
+ return id
+}
+
+async function getMp3(videoId){
+
+ const res = await fetch(
+  `https://api.vevioz.com/api/button/mp3/${videoId}`,
+  UA
+ )
+
+ const html = await res.text()
+
+ const link = html.match(/href="(https:[^"]+\.mp3[^"]*)"/)?.[1]
+
+ if(!link) return null
+
+ return link
+}
+
+let handler = async (m,{ conn, args }) => {
+
+ const text = args.join(" ")
+
+ if(!text)
+  return conn.sendMessage(
+   m.chat,
+   { text:"Escribe algo para buscar" },
+   { quoted:m }
   )
 
-  try {
-    // API que busca + devuelve audio
-    const api = `https://nexevo-api.vercel.app/play?query=${encodeURIComponent(query)}`
-    const { data } = await axios.get(api)
-
-    if (!data?.status || !data?.result?.url)
-      throw new Error('No se pudo obtener el audio.')
-
-    const title = data.result.title || 'audio'
-
-    await conn.sendMessage(
-      msg.chat,
-      {
-        audio: { url: data.result.url },
-        mimetype: 'audio/mpeg',
-        fileName: `${sanitizeFilename(title)}.mp3`
-      },
-      { quoted: msg }
-    )
-
-  } catch (e) {
-    await conn.sendMessage(
-      msg.chat,
-      { text: `❌ Error:\n${e.message}` },
-      { quoted: msg }
-    )
+ await conn.sendMessage(m.chat,{
+  react:{
+   text:"🙈",
+   key:m.key
   }
+ })
+
+ try{
+
+  const id = await searchYT(text)
+
+  if(!id)
+   return conn.sendMessage(
+    m.chat,
+    { text:"No encontrado" },
+    { quoted:m }
+   )
+
+  const mp3 = await getMp3(id)
+
+  if(!mp3)
+   return conn.sendMessage(
+    m.chat,
+    { text:"Error obteniendo audio" },
+    { quoted:m }
+   )
+
+  await conn.sendMessage(
+   m.chat,
+   {
+    audio:{ url: mp3 },
+    mimetype:"audio/mpeg",
+    fileName:"play.mp3"
+   },
+   { quoted:m }
+  )
+
+ }catch{
+
+  conn.sendMessage(
+   m.chat,
+   { text:"Error" },
+   { quoted:m }
+  )
+
+ }
 }
 
-handler.help = ['play <título>']
-handler.tags = ['download']
-handler.command = ['play', 'ytmp3']
+handler.command = ["play"]
 
 export default handler
-
-function sanitizeFilename(name = 'audio') {
-  return name.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 100)
-}
