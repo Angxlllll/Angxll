@@ -25,22 +25,19 @@ async function searchYouTube(q) {
 
   const { data } = await axios.post(YT_SEARCH, body, UA)
 
-  const items =
+  const sections =
     data?.contents?.twoColumnSearchResultsRenderer?.primaryContents
       ?.sectionListRenderer?.contents || []
 
-  for (const sec of items) {
+  for (const sec of sections) {
 
-    const vids = sec.itemSectionRenderer?.contents || []
+    const items = sec.itemSectionRenderer?.contents
+    if (!items) continue
 
-    for (const v of vids) {
-
+    for (const v of items) {
       const id = v.videoRenderer?.videoId
-
       if (id) return id
-
     }
-
   }
 
   return null
@@ -52,34 +49,22 @@ async function resolveDownload(id) {
 
   const apis = [
 
-    async () => {
-      const { data } = await axios.get(
-        "https://api-faa.my.id/faa/ytmp3?url=" + url,
-        { timeout: 15000 }
-      )
-      return data?.result?.download_url
-    },
+    axios.get(
+      "https://api-faa.my.id/faa/ytmp4?url=" + url,
+      { timeout: 15000 }
+    ).then(r => r.data?.result?.download_url),
 
-    async () => {
-      const { data } = await axios.get(
-        "https://api.ryzendesu.vip/api/downloader/ytmp3?url=" + url,
-        { timeout: 15000 }
-      )
-      return data?.url
-    }
+    axios.get(
+      "https://api.ryzendesu.vip/api/downloader/ytmp4?url=" + url,
+      { timeout: 15000 }
+    ).then(r => r.data?.url)
 
   ]
 
-  for (const fn of apis) {
+  const results = await Promise.allSettled(apis)
 
-    try {
-
-      const dl = await fn()
-
-      if (dl) return dl
-
-    } catch {}
-
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value) return r.value
   }
 
   return null
@@ -90,13 +75,11 @@ const handler = async (m, { conn, args, usedPrefix }) => {
   const q = args.join(" ").trim()
 
   if (!q) {
-
     return global.replyWithQuote(
       conn,
       m,
-      `❌ Escribe una canción\nEjemplo:\n${usedPrefix}play bad bunny`
+      `❌ Escribe un video\nEjemplo:\n${usedPrefix}play2 bad bunny`
     )
-
   }
 
   try {
@@ -106,7 +89,7 @@ const handler = async (m, { conn, args, usedPrefix }) => {
     const id = await searchYouTube(q)
 
     if (!id)
-      throw new Error("No se encontró audio")
+      throw new Error("No se encontró video")
 
     global.react(conn, m, "⬇️")
 
@@ -120,10 +103,10 @@ const handler = async (m, { conn, args, usedPrefix }) => {
     await conn.sendMessage(
       m.chat,
       {
-        audio: { url: dl },
-        mimetype: "audio/mpeg",
-        fileName: id + ".mp3",
-        ptt: false
+        video: { url: dl },
+        mimetype: "video/mp4",
+        fileName: id + ".mp4",
+        caption: "🎬 https://youtu.be/" + id
       },
       { quoted }
     )
@@ -142,8 +125,8 @@ const handler = async (m, { conn, args, usedPrefix }) => {
 
 }
 
-handler.command = ["play"]
+handler.command = ["play2"]
 handler.tags = ["download"]
-handler.help = ["play <canción>"]
+handler.help = ["play2 <titulo>"]
 
 export default handler
