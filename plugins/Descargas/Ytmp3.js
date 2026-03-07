@@ -53,13 +53,7 @@ function sanitize(name = "audio") {
 const savetube = {
   key: Buffer.from("C5D58EF67A7584E4A29F6C35BBC4EB12", "hex"),
 
-  decrypt(enc) {
-    const b = Buffer.from(enc.replace(/\s/g, ""), "base64")
-    const iv = b.subarray(0, 16)
-    const data = b.subarray(16)
-    const d = crypto.createDecipheriv("aes-128-cbc", this.key, iv)
-    return JSON.parse(Buffer.concat([d.update(data), d.final()]).toString())
-  },
+  host: "cdn.savetube.vip",
 
   headers: {
     "content-type": "application/json",
@@ -68,34 +62,25 @@ const savetube = {
     "user-agent": "Mozilla/5.0"
   },
 
+  decrypt(enc) {
+    const b = Buffer.from(enc.replace(/\s/g, ""), "base64")
+    const iv = b.subarray(0, 16)
+    const data = b.subarray(16)
+    const d = crypto.createDecipheriv("aes-128-cbc", this.key, iv)
+    return JSON.parse(Buffer.concat([d.update(data), d.final()]).toString())
+  },
+
   async download(url) {
     try {
 
-      const random = await fetch(
-        "https://media.savetube.vip/api/random-cdn",
-        { headers: this.headers }
-      ).then(r => r.json()).catch(() => null)
-
-      if (!random?.cdn) {
-        return { status: false, error: "CDN no disponible" }
-      }
-
-      const cdn = random.cdn
-
-      const infoRes = await fetch(`https://${cdn}/v2/info`, {
+      const info = await fetch(`https://${this.host}/v2/info`, {
         method: "POST",
         headers: this.headers,
         body: JSON.stringify({ url })
-      }).catch(() => null)
+      }).then(r => r.json())
 
-      if (!infoRes || infoRes.status !== 200) {
-        return { status: false, error: "Info request failed" }
-      }
-
-      const info = await infoRes.json()
-
-      if (!info?.status || !info?.data) {
-        return { status: false, error: "Respuesta inválida" }
+      if (!info?.status) {
+        return { status: false, error: "Info error" }
       }
 
       const json = this.decrypt(info.data)
@@ -108,7 +93,7 @@ const savetube = {
         return { status: false, error: "Audio no disponible" }
       }
 
-      const dl = await fetch(`https://${cdn}/download`, {
+      const dl = await fetch(`https://${this.host}/download`, {
         method: "POST",
         headers: this.headers,
         body: JSON.stringify({
@@ -117,12 +102,12 @@ const savetube = {
           downloadType: "audio",
           quality: String(format.quality)
         })
-      }).then(r => r.json()).catch(() => null)
+      }).then(r => r.json())
 
       const link = dl?.data?.downloadUrl
 
       if (!link) {
-        return { status: false, error: "Link no generado" }
+        return { status: false, error: "Link error" }
       }
 
       return {
