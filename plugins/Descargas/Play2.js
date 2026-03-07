@@ -1,82 +1,135 @@
-import axios from 'axios'
+import axios from "axios"
 
 const UA = {
   headers: {
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    'accept-language': 'en-US,en;q=0.9'
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "accept-language": "en-US,en;q=0.9",
+    "content-type": "application/json"
   },
   timeout: 15000
 }
 
-const handler = async (msg, { conn, args, usedPrefix }) => {
+const YT_SEARCH = "https://www.youtube.com/youtubei/v1/search?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vzJqR0CqA"
 
-  const q = args.join(' ').trim()
+async function searchYouTube(q) {
+  const body = {
+    context: {
+      client: {
+        clientName: "WEB",
+        clientVersion: "2.20240207.00.00"
+      }
+    },
+    query: q
+  }
+
+  const { data } = await axios.post(YT_SEARCH, body, UA)
+
+  const items =
+    data?.contents?.twoColumnSearchResultsRenderer?.primaryContents
+      ?.sectionListRenderer?.contents || []
+
+  for (const sec of items) {
+    const vids = sec.itemSectionRenderer?.contents || []
+    for (const v of vids) {
+      const id = v.videoRenderer?.videoId
+      if (id) return id
+    }
+  }
+
+  return null
+}
+
+async function resolveDownload(id) {
+
+  const url = "https://youtu.be/" + id
+
+  const apis = [
+
+    async () => {
+      const { data } = await axios.get(
+        "https://api-faa.my.id/faa/ytmp4?url=" + url,
+        { timeout: 15000 }
+      )
+      return data?.result?.download_url
+    },
+
+    async () => {
+      const { data } = await axios.get(
+        "https://api.ryzendesu.vip/api/downloader/ytmp4?url=" + url,
+        { timeout: 15000 }
+      )
+      return data?.url
+    }
+
+  ]
+
+  for (const fn of apis) {
+    try {
+      const dl = await fn()
+      if (dl) return dl
+    } catch {}
+  }
+
+  return null
+}
+
+const handler = async (m, { conn, args, usedPrefix }) => {
+
+  const q = args.join(" ").trim()
 
   if (!q) {
-    return conn.sendMessage(
-      msg.chat,
-      { text: `❌ Escribe un video\nEjemplo:\n${usedPrefix}play2 bad bunny` },
-      { quoted: msg }
+    return global.replyWithQuote(
+      conn,
+      m,
+      `❌ Escribe un video\nEjemplo:\n${usedPrefix}play2 bad bunny`
     )
   }
 
   try {
 
-    await conn.sendMessage(msg.chat, {
-      react: { text: '🔥', key: msg.key }
-    })
+    global.react(conn, m, "🔎")
 
-    const id = await searchYT(q)
+    const id = await searchYouTube(q)
 
-    if (!id) throw 'No se encontró video'
+    if (!id)
+      throw new Error("No se encontró video")
 
-    const { data } = await axios.get(
-      `https://api-faa.my.id/faa/ytmp4?url=https://youtu.be/${id}`,
-      UA
-    )
+    global.react(conn, m, "⬇️")
 
-    const dl = data?.result?.download_url
+    const dl = await resolveDownload(id)
 
-    if (!dl) throw 'API sin descarga disponible'
+    if (!dl)
+      throw new Error("No hay descarga disponible")
+
+    const quoted = await global.getFakeQuote(m, conn)
 
     await conn.sendMessage(
-      msg.chat,
+      m.chat,
       {
         video: { url: dl },
-        mimetype: 'video/mp4',
-        fileName: `${id}.mp4`,
-        caption: `🎬 https://youtu.be/${id}`
+        mimetype: "video/mp4",
+        fileName: id + ".mp4",
+        caption: "🎬 https://youtu.be/" + id
       },
-      { quoted: msg }
+      { quoted }
     )
 
-  } catch (err) {
+    global.react(conn, m, "✅")
 
-    await conn.sendMessage(
-      msg.chat,
-      { text: `❌ Error: ${err?.message || err}` },
-      { quoted: msg }
+  } catch (e) {
+
+    return global.replyWithQuote(
+      conn,
+      m,
+      "❌ Error: " + (e?.message || e)
     )
 
   }
 
 }
 
-handler.command = ['play2']
-handler.tags = ['download']
-handler.help = ['play2 <titulo>']
+handler.command = ["play2"]
+handler.tags = ["download"]
+handler.help = ["play2 <titulo>"]
 
 export default handler
-
-
-async function searchYT(q) {
-
-  const { data } = await axios.get(
-    'https://www.youtube.com/results?search_query=' + encodeURIComponent(q),
-    UA
-  )
-
-  const match = data.match(/"videoId":"([a-zA-Z0-9_-]{11})"/)
-
-  return match?.[1] || null
-}
