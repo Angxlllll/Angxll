@@ -1,126 +1,72 @@
-import fetch from "node-fetch"
+import yts from 'yt-search'
+import axios from 'axios'
 
-const UA = {
- headers:{
-  "user-agent":
-   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
- }
-}
+const handler = async (msg, { conn, args, usedPrefix, command }) => {
+  const query = args.join(' ').trim()
 
-async function searchYT(q){
+  if (!query) {
+    await conn.sendMessage(
+      msg.chat,
+      { text: `❌ *Error:*\n> Debes escribir el nombre del video.` },
+      { quoted: msg }
+    )
 
- const res = await fetch(
-  "https://www.youtube.com/results?search_query=" +
-  encodeURIComponent(q),
-  UA
- )
-
- const html = await res.text()
-
- const id = html.match(/"videoId":"(.*?)"/)?.[1]
-
- if(!id) return null
-
- return id
-}
-
-async function getAudio(videoId){
-
- const body = {
-  context:{
-   client:{
-    clientName:"ANDROID",
-    clientVersion:"18.11.34"
-   }
-  },
-  videoId:videoId
- }
-
- const res = await fetch(
-  "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
-  {
-   method:"POST",
-   headers:{
-    ...UA.headers,
-    "content-type":"application/json"
-   },
-   body:JSON.stringify(body)
+    return conn.sendMessage(
+      msg.chat,
+      { text: `✳️ Usa:\n${usedPrefix} play <nombre del audio>` },
+      { quoted: msg }
+    )
   }
- )
-
- const json = await res.json()
-
- const formats =
-  json?.streamingData?.adaptiveFormats || []
-
- const audio = formats.find(v =>
-  v.mimeType?.includes("audio")
- )
-
- if(!audio) return null
-
- return audio.url
-}
-
-let handler = async (m,{ conn, args }) => {
-
- const text = args.join(" ")
-
- if(!text)
-  return conn.sendMessage(
-   m.chat,
-   { text:"Ejemplo: .play karma police" },
-   { quoted:m }
-  )
-
- await conn.sendMessage(m.chat,{
-  react:{
-   text:"🎧",
-   key:m.key
-  }
- })
-
- try{
-
-  const id = await searchYT(text)
-
-  if(!id)
-   return conn.sendMessage(
-    m.chat,
-    { text:"No encontrado" },
-    { quoted:m }
-   )
-
-  const audio = await getAudio(id)
-
-  if(!audio)
-   return conn.sendMessage(
-    m.chat,
-    { text:"No se pudo obtener audio" },
-    { quoted:m }
-   )
 
   await conn.sendMessage(
-   m.chat,
-   {
-    audio:{ url: audio },
-    mimetype:"audio/mpeg",
-    fileName:"play.mp3"
-   },
-   { quoted:m }
+    msg.chat,
+    { text: '*🎧 Descargando audio...*' },
+    { quoted: msg }
   )
 
- }catch{
+  try {
+    const search = await yts(query)
+    if (!search.videos?.length)
+      throw new Error('No se encontró el audio.')
 
-  conn.sendMessage(
-   m.chat,
-   { text:"Error descargando audio" },
-   { quoted:m }
-  )
+    const url = search.videos[0].url
 
- }
+    const api = `https://nexevo-api.vercel.app/download/y?url=${encodeURIComponent(url)}`
+    const { data } = await axios.get(api)
+
+    if (!data?.status || !data?.result?.status || !data?.result?.url)
+      throw new Error('Error en descarga.')
+
+    const title =
+      data.result.info?.title ||
+      search.videos[0]?.title ||
+      'audio'
+
+    await conn.sendMessage(
+      msg.chat,
+      {
+        audio: { url: data.result.url },
+        mimetype: 'audio/mpeg',
+        fileName: `${sanitizeFilename(title)}.mp3`
+      },
+      { quoted: msg }
+    )
+
+  } catch (e) {
+    await conn.sendMessage(
+      msg.chat,
+      { text: `❌ Error:\n${e.message}` },
+      { quoted: msg }
+    )
+  }
 }
 
-handler.command = ["play"]
+handler.help = ['play <título>', 'ytmp3 <título>']
+handler.tags = ['download']
+handler.command = ['play', 'ytamp3']
 
 export default handler
+
+function sanitizeFilename(name = 'audio') {
+  return name.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 100)
+}
