@@ -95,6 +95,6 @@ ${data.display || "N/A"}
 
 handler.help = ["postal <codigo>"]
 handler.tags = ["herramientas"]
-handler.command = "postal"
+handler.command = ['ip']
 
 export default handler
