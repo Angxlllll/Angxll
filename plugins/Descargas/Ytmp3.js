@@ -4,6 +4,8 @@ function isYouTube(url = "") {
   return ytdl.validateURL(url)
 }
 
+const agent = ytdl.createAgent([])
+
 const handler = async (m, { conn, args, usedPrefix, command }) => {
 
   const url = args[0]
@@ -22,7 +24,17 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
 
   try {
 
-    const info = await ytdl.getInfo(url)
+    const info = await ytdl.getInfo(url, {
+      agent,
+      requestOptions: {
+        headers: {
+          "user-agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+          "accept-language": "es-ES,es;q=0.9",
+          "accept": "*/*"
+        }
+      }
+    })
 
     const title = info.videoDetails.title
       .replace(/[\\/:*?"<>|]/g, "")
