@@ -12,6 +12,7 @@ const UA = {
 const YT_SEARCH = "https://www.youtube.com/youtubei/v1/search?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vzJqR0CqA"
 
 async function searchYouTube(q) {
+
   const body = {
     context: {
       client: {
@@ -24,13 +25,16 @@ async function searchYouTube(q) {
 
   const { data } = await axios.post(YT_SEARCH, body, UA)
 
-  const items =
+  const sections =
     data?.contents?.twoColumnSearchResultsRenderer?.primaryContents
       ?.sectionListRenderer?.contents || []
 
-  for (const sec of items) {
-    const vids = sec.itemSectionRenderer?.contents || []
-    for (const v of vids) {
+  for (const sec of sections) {
+
+    const items = sec.itemSectionRenderer?.contents
+    if (!items) continue
+
+    for (const v of items) {
       const id = v.videoRenderer?.videoId
       if (id) return id
     }
@@ -45,29 +49,22 @@ async function resolveDownload(id) {
 
   const apis = [
 
-    async () => {
-      const { data } = await axios.get(
-        "https://api-faa.my.id/faa/ytmp4?url=" + url,
-        { timeout: 15000 }
-      )
-      return data?.result?.download_url
-    },
+    axios.get(
+      "https://api-faa.my.id/faa/ytmp4?url=" + url,
+      { timeout: 15000 }
+    ).then(r => r.data?.result?.download_url),
 
-    async () => {
-      const { data } = await axios.get(
-        "https://api.ryzendesu.vip/api/downloader/ytmp4?url=" + url,
-        { timeout: 15000 }
-      )
-      return data?.url
-    }
+    axios.get(
+      "https://api.ryzendesu.vip/api/downloader/ytmp4?url=" + url,
+      { timeout: 15000 }
+    ).then(r => r.data?.url)
 
   ]
 
-  for (const fn of apis) {
-    try {
-      const dl = await fn()
-      if (dl) return dl
-    } catch {}
+  const results = await Promise.allSettled(apis)
+
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value) return r.value
   }
 
   return null
