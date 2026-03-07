@@ -1,34 +1,89 @@
-import play from "play-dl"
+import axios from "axios"
 import NodeCache from "node-cache"
+import http from "http"
+import https from "https"
+import play from "play-dl"
 
 const searchCache = new NodeCache({ stdTTL: 600 })
 const audioCache = new NodeCache({ stdTTL: 3600 })
+
+await play.setToken({
+  youtube: {
+    cookie: process.env.YT_COOKIE || ""
+  }
+})
+
+const axiosClient = axios.create({
+  headers: {
+    "user-agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "accept-language": "en-US,en;q=0.9",
+    "content-type": "application/json"
+  },
+  timeout: 15000,
+  httpAgent: new http.Agent({ keepAlive: true }),
+  httpsAgent: new https.Agent({ keepAlive: true })
+})
+
+const YT_SEARCH =
+"https://www.youtube.com/youtubei/v1/search?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vzJqR0CqA"
 
 async function searchYouTube(q) {
 
   const cached = searchCache.get(q)
   if (cached) return cached
 
-  const results = await play.search(q, { limit: 1 })
-  if (!results.length) return null
+  const body = {
+    context: {
+      client: {
+        clientName: "WEB",
+        clientVersion: "2.20240207.00.00"
+      }
+    },
+    query: q
+  }
 
-  const url = results[0].url
+  const { data } = await axiosClient.post(YT_SEARCH, body)
 
-  searchCache.set(q, url)
-  return url
+  const sections =
+    data?.contents?.twoColumnSearchResultsRenderer
+      ?.primaryContents?.sectionListRenderer?.contents
 
+  if (!sections) return null
+
+  for (const sec of sections) {
+
+    const items = sec?.itemSectionRenderer?.contents
+    if (!items) continue
+
+    for (const v of items) {
+
+      const id = v?.videoRenderer?.videoId
+
+      if (id) {
+        searchCache.set(q, id)
+        return id
+      }
+
+    }
+
+  }
+
+  return null
 }
 
-async function resolveAudio(url) {
+async function resolveAudio(id) {
 
-  const cached = audioCache.get(url)
+  const cached = audioCache.get(id)
   if (cached) return cached
+
+  const url = "https://youtu.be/" + id
 
   const stream = await play.stream(url)
 
-  audioCache.set(url, stream.stream)
-  return stream.stream
+  audioCache.set(id, stream.stream)
 
+  return stream.stream
 }
 
 const handler = async (m, { conn, args, usedPrefix }) => {
@@ -46,14 +101,14 @@ const handler = async (m, { conn, args, usedPrefix }) => {
 
     global.react(conn, m, "🔎")
 
-    const url = await searchYouTube(q)
+    const id = await searchYouTube(q)
 
-    if (!url)
+    if (!id)
       throw new Error("No se encontró audio")
 
     global.react(conn, m, "⬇️")
 
-    const stream = await resolveAudio(url)
+    const stream = await resolveAudio(id)
 
     const quoted = await global.getFakeQuote(m, conn)
 
