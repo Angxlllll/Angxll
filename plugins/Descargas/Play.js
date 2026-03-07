@@ -1,72 +1,149 @@
-import yts from 'yt-search'
-import axios from 'axios'
+import axios from "axios"
 
-const handler = async (msg, { conn, args, usedPrefix, command }) => {
-  const query = args.join(' ').trim()
+const UA = {
+  headers: {
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "accept-language": "en-US,en;q=0.9",
+    "content-type": "application/json"
+  },
+  timeout: 15000
+}
 
-  if (!query) {
-    await conn.sendMessage(
-      msg.chat,
-      { text: `❌ *Error:*\n> Debes escribir el nombre del video.` },
-      { quoted: msg }
-    )
+const YT_SEARCH = "https://www.youtube.com/youtubei/v1/search?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vzJqR0CqA"
 
-    return conn.sendMessage(
-      msg.chat,
-      { text: `✳️ Usa:\n${usedPrefix} play <nombre del audio>` },
-      { quoted: msg }
-    )
+async function searchYouTube(q) {
+
+  const body = {
+    context: {
+      client: {
+        clientName: "WEB",
+        clientVersion: "2.20240207.00.00"
+      }
+    },
+    query: q
   }
 
-  await conn.sendMessage(
-    msg.chat,
-    { text: '*🎧 Descargando audio...*' },
-    { quoted: msg }
-  )
+  const { data } = await axios.post(YT_SEARCH, body, UA)
+
+  const items =
+    data?.contents?.twoColumnSearchResultsRenderer?.primaryContents
+      ?.sectionListRenderer?.contents || []
+
+  for (const sec of items) {
+
+    const vids = sec.itemSectionRenderer?.contents || []
+
+    for (const v of vids) {
+
+      const id = v.videoRenderer?.videoId
+
+      if (id) return id
+
+    }
+
+  }
+
+  return null
+}
+
+async function resolveDownload(id) {
+
+  const url = "https://youtu.be/" + id
+
+  const apis = [
+
+    async () => {
+      const { data } = await axios.get(
+        "https://api-faa.my.id/faa/ytmp3?url=" + url,
+        { timeout: 15000 }
+      )
+      return data?.result?.download_url
+    },
+
+    async () => {
+      const { data } = await axios.get(
+        "https://api.ryzendesu.vip/api/downloader/ytmp3?url=" + url,
+        { timeout: 15000 }
+      )
+      return data?.url
+    }
+
+  ]
+
+  for (const fn of apis) {
+
+    try {
+
+      const dl = await fn()
+
+      if (dl) return dl
+
+    } catch {}
+
+  }
+
+  return null
+}
+
+const handler = async (m, { conn, args, usedPrefix }) => {
+
+  const q = args.join(" ").trim()
+
+  if (!q) {
+
+    return global.replyWithQuote(
+      conn,
+      m,
+      `❌ Escribe una canción\nEjemplo:\n${usedPrefix}play bad bunny`
+    )
+
+  }
 
   try {
-    const search = await yts(query)
-    if (!search.videos?.length)
-      throw new Error('No se encontró el audio.')
 
-    const url = search.videos[0].url
+    global.react(conn, m, "🔎")
 
-    const api = `https://nexevo-api.vercel.app/download/y?url=${encodeURIComponent(url)}`
-    const { data } = await axios.get(api)
+    const id = await searchYouTube(q)
 
-    if (!data?.status || !data?.result?.status || !data?.result?.url)
-      throw new Error('Error en descarga.')
+    if (!id)
+      throw new Error("No se encontró audio")
 
-    const title =
-      data.result.info?.title ||
-      search.videos[0]?.title ||
-      'audio'
+    global.react(conn, m, "⬇️")
+
+    const dl = await resolveDownload(id)
+
+    if (!dl)
+      throw new Error("No hay descarga disponible")
+
+    const quoted = await global.getFakeQuote(m, conn)
 
     await conn.sendMessage(
-      msg.chat,
+      m.chat,
       {
-        audio: { url: data.result.url },
-        mimetype: 'audio/mpeg',
-        fileName: `${sanitizeFilename(title)}.mp3`
+        audio: { url: dl },
+        mimetype: "audio/mpeg",
+        fileName: id + ".mp3",
+        ptt: false
       },
-      { quoted: msg }
+      { quoted }
     )
+
+    global.react(conn, m, "✅")
 
   } catch (e) {
-    await conn.sendMessage(
-      msg.chat,
-      { text: `❌ Error:\n${e.message}` },
-      { quoted: msg }
+
+    return global.replyWithQuote(
+      conn,
+      m,
+      "❌ Error: " + (e?.message || e)
     )
+
   }
+
 }
 
-handler.help = ['play <título>', 'ytmp3 <título>']
-handler.tags = ['download']
-handler.command = ['play', 'ytamp3']
+handler.command = ["play"]
+handler.tags = ["download"]
+handler.help = ["play <canción>"]
 
 export default handler
-
-function sanitizeFilename(name = 'audio') {
-  return name.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 100)
-}
