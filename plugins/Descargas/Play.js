@@ -1,10 +1,10 @@
 import axios from "axios"
+import NodeCache from "node-cache"
+import http from "http"
+import https from "https"
 
-const API_URL = "https://api-adonix.ultraplus.click/download/ytaudio"
-const API_KEY = "Angxlllll"
-
-const YT_SEARCH =
-"https://www.youtube.com/youtubei/v1/search?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vzJqR0CqA"
+const searchCache = new NodeCache({ stdTTL: 600 })
+const audioCache = new NodeCache({ stdTTL: 3600 })
 
 const axiosClient = axios.create({
   headers: {
@@ -13,10 +13,18 @@ const axiosClient = axios.create({
     "accept-language": "en-US,en;q=0.9",
     "content-type": "application/json"
   },
-  timeout: 15000
+  timeout: 15000,
+  httpAgent: new http.Agent({ keepAlive: true }),
+  httpsAgent: new https.Agent({ keepAlive: true })
 })
 
+const YT_SEARCH =
+"https://www.youtube.com/youtubei/v1/search?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vzJqR0CqA"
+
 async function searchYouTube(q) {
+
+  const cached = searchCache.get(q)
+  if (cached) return cached
 
   const body = {
     context: {
@@ -44,7 +52,11 @@ async function searchYouTube(q) {
     for (const v of items) {
 
       const id = v?.videoRenderer?.videoId
-      if (id) return id
+
+      if (id) {
+        searchCache.set(q, id)
+        return id
+      }
 
     }
 
@@ -53,25 +65,34 @@ async function searchYouTube(q) {
   return null
 }
 
-async function resolveDownload(id) {
+async function resolveAudio(id) {
+
+  const cached = audioCache.get(id)
+  if (cached) return cached
 
   const url = "https://youtu.be/" + id
 
   try {
 
-    const { data } = await axiosClient.get(API_URL, {
-      params: {
-        url,
-        apikey: API_KEY
+    const { data } = await axiosClient.get(
+      "https://api-adonix.ultraplus.click/download/ytaudio",
+      {
+        params: {
+          url,
+          apikey: "Angxlllll"
+        }
       }
-    })
+    )
 
-    return (
+    const dl =
       data?.data?.url ||
       data?.datos?.url ||
       data?.result?.url ||
       null
-    )
+
+    if (dl) audioCache.set(id, dl)
+
+    return dl
 
   } catch {
 
@@ -84,15 +105,12 @@ const handler = async (m, { conn, args, usedPrefix }) => {
 
   const q = args.join(" ").trim()
 
-  if (!q) {
-
+  if (!q)
     return global.replyWithQuote(
       conn,
       m,
-      `❌ Escribe una canción\nEjemplo:\n${usedPrefix}play bad bunny`
+      `❌ Ejemplo:\n${usedPrefix}play bad bunny`
     )
-
-  }
 
   try {
 
@@ -105,7 +123,7 @@ const handler = async (m, { conn, args, usedPrefix }) => {
 
     global.react(conn, m, "⬇️")
 
-    const dl = await resolveDownload(id)
+    const dl = await resolveAudio(id)
 
     if (!dl)
       throw new Error("No hay descarga disponible")
@@ -117,7 +135,6 @@ const handler = async (m, { conn, args, usedPrefix }) => {
       {
         audio: { url: dl },
         mimetype: "audio/mpeg",
-        fileName: `${id}.mp3`,
         ptt: false
       },
       { quoted }
@@ -127,7 +144,7 @@ const handler = async (m, { conn, args, usedPrefix }) => {
 
   } catch (e) {
 
-    return global.replyWithQuote(
+    global.replyWithQuote(
       conn,
       m,
       "❌ Error: " + (e?.message || e)
