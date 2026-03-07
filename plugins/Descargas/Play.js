@@ -1,7 +1,7 @@
 import fetch from "node-fetch"
 
 const UA = {
- headers: {
+ headers:{
   "user-agent":
    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
  }
@@ -11,7 +11,7 @@ async function searchYT(q){
 
  const res = await fetch(
   "https://www.youtube.com/results?search_query=" +
-   encodeURIComponent(q),
+  encodeURIComponent(q),
   UA
  )
 
@@ -21,23 +21,21 @@ async function searchYT(q){
 
  if(!id) return null
 
- return id
+ return "https://youtu.be/" + id
 }
 
-async function getMp3(videoId){
+async function getMp3(url){
 
- const res = await fetch(
-  `https://api.vevioz.com/api/button/mp3/${videoId}`,
+ const info = await fetch(
+  "https://cdn.savetube.me/info?url=" + encodeURIComponent(url),
   UA
- )
+ ).then(v=>v.json())
 
- const html = await res.text()
+ const audio = info?.data?.audio?.find(v=>v.ext==="mp3")
 
- const link = html.match(/href="(https:[^"]+\.mp3[^"]*)"/)?.[1]
+ if(!audio) return null
 
- if(!link) return null
-
- return link
+ return audio.url
 }
 
 let handler = async (m,{ conn, args }) => {
@@ -47,34 +45,34 @@ let handler = async (m,{ conn, args }) => {
  if(!text)
   return conn.sendMessage(
    m.chat,
-   { text:"Escribe algo para buscar" },
+   { text:"Ejemplo: .play karma police" },
    { quoted:m }
   )
 
  await conn.sendMessage(m.chat,{
   react:{
-   text:"🙈",
+   text:"🎵",
    key:m.key
   }
  })
 
  try{
 
-  const id = await searchYT(text)
+  const yt = await searchYT(text)
 
-  if(!id)
+  if(!yt)
    return conn.sendMessage(
     m.chat,
     { text:"No encontrado" },
     { quoted:m }
    )
 
-  const mp3 = await getMp3(id)
+  const mp3 = await getMp3(yt)
 
   if(!mp3)
    return conn.sendMessage(
     m.chat,
-    { text:"Error obteniendo audio" },
+    { text:"No se pudo obtener audio" },
     { quoted:m }
    )
 
@@ -88,11 +86,11 @@ let handler = async (m,{ conn, args }) => {
    { quoted:m }
   )
 
- }catch{
+ }catch(e){
 
   conn.sendMessage(
    m.chat,
-   { text:"Error" },
+   { text:"Error descargando" },
    { quoted:m }
   )
 
