@@ -21,17 +21,41 @@ async function searchYT(q){
 
  if(!id) return null
 
- return "https://youtu.be/" + id
+ return id
 }
 
-async function getMp3(url){
+async function getAudio(videoId){
 
- const info = await fetch(
-  "https://cdn.savetube.me/info?url=" + encodeURIComponent(url),
-  UA
- ).then(v=>v.json())
+ const body = {
+  context:{
+   client:{
+    clientName:"ANDROID",
+    clientVersion:"18.11.34"
+   }
+  },
+  videoId:videoId
+ }
 
- const audio = info?.data?.audio?.find(v=>v.ext==="mp3")
+ const res = await fetch(
+  "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8",
+  {
+   method:"POST",
+   headers:{
+    ...UA.headers,
+    "content-type":"application/json"
+   },
+   body:JSON.stringify(body)
+  }
+ )
+
+ const json = await res.json()
+
+ const formats =
+  json?.streamingData?.adaptiveFormats || []
+
+ const audio = formats.find(v =>
+  v.mimeType?.includes("audio")
+ )
 
  if(!audio) return null
 
@@ -51,25 +75,25 @@ let handler = async (m,{ conn, args }) => {
 
  await conn.sendMessage(m.chat,{
   react:{
-   text:"🎵",
+   text:"🎧",
    key:m.key
   }
  })
 
  try{
 
-  const yt = await searchYT(text)
+  const id = await searchYT(text)
 
-  if(!yt)
+  if(!id)
    return conn.sendMessage(
     m.chat,
     { text:"No encontrado" },
     { quoted:m }
    )
 
-  const mp3 = await getMp3(yt)
+  const audio = await getAudio(id)
 
-  if(!mp3)
+  if(!audio)
    return conn.sendMessage(
     m.chat,
     { text:"No se pudo obtener audio" },
@@ -79,18 +103,18 @@ let handler = async (m,{ conn, args }) => {
   await conn.sendMessage(
    m.chat,
    {
-    audio:{ url: mp3 },
+    audio:{ url: audio },
     mimetype:"audio/mpeg",
     fileName:"play.mp3"
    },
    { quoted:m }
   )
 
- }catch(e){
+ }catch{
 
   conn.sendMessage(
    m.chat,
-   { text:"Error descargando" },
+   { text:"Error descargando audio" },
    { quoted:m }
   )
 
